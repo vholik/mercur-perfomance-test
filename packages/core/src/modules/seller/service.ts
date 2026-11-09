@@ -72,7 +72,7 @@ class SellerModuleService extends MedusaService({
   protected readonly sellerService_: ModulesSdkTypes.IMedusaInternalService<
     typeof Seller
   >
-  protected readonly options_: SellerModuleOptions
+  protected readonly options_: SellerModuleOptions & { jwt_secret: string }
 
   constructor(
     {

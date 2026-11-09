@@ -50,3 +50,8 @@ docs/specs/
 .env.bak
 
 .playwright-mcp/
+
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+.pnp.*

@@ -7,16 +7,16 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@mercurjs/client": "*",
-    "@mercurjs/dashboard-sdk": "*",
-    "@mercurjs/vendor": "*",
+    "@mercurjs/client": "workspace:*",
+    "@mercurjs/dashboard-sdk": "workspace:*",
+    "@mercurjs/vendor": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.3",
     "@types/react": "^18.3.2",
     "@types/react-dom": "^18.2.25",
+    "@vitejs/plugin-react": "^6.0.3",
     "vite": "^8.1.3"
   }
 }

@@ -18,6 +18,7 @@
     "medusa"
   ],
   "scripts": {
+    "build": "medusa build",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "stripe:simulate": "medusa exec ./src/scripts/simulate-stripe-payouts.ts",
     "stripe:check-webhooks": "medusa exec ./src/scripts/check-stripe-webhooks.ts",
@@ -31,17 +32,17 @@
   },
   "dependencies": {
     "@medusajs/admin-sdk": "2.22.3",
-    "@medusajs/cli": "2.22.3",
-    "@medusajs/framework": "2.22.3",
-    "@medusajs/dashboard": "2.22.3",
     "@medusajs/admin-shared": "2.22.3",
-    "@medusajs/medusa": "2.22.3",
+    "@medusajs/cli": "2.22.3",
+    "@medusajs/dashboard": "2.22.3",
     "@medusajs/draft-order": "2.22.3",
-    "@mercurjs/core": "*",
-    "@mercurjs/stripe-connector-plugin": "*",
-    "@mercurjs/types": "*",
-    "http-proxy-middleware": "^3.0.3",
-    "@mercurjs/cli": "*"
+    "@medusajs/framework": "2.22.3",
+    "@medusajs/medusa": "2.22.3",
+    "@mercurjs/cli": "workspace:*",
+    "@mercurjs/core": "workspace:*",
+    "@mercurjs/stripe-connector-plugin": "workspace:*",
+    "@mercurjs/types": "workspace:*",
+    "http-proxy-middleware": "^3.0.3"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.22.3",
@@ -51,9 +52,11 @@
     "@types/node": "^26.1.0",
     "jest": "^30.4.2",
     "prop-types": "^15.8.1",
+    "ts-node": "^10.9.2",
     "yalc": "^1.0.0-pre.53"
   },
   "engines": {
     "node": ">=22.22.0"
-  }
+  },
+  "private": true
 }
