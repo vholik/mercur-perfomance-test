@@ -1,0 +1,72 @@
+
+
+  █ THRESHOLDS 
+
+    http_req_duration{scenario:addBrowseAddAbandon}
+    ✓ 'p(95)<700' p(95)=519.97ms
+
+    http_req_duration{scenario:addBrowseAddComplete}
+    ✓ 'p(95)<1200' p(95)=745.37ms
+
+    http_req_duration{scenario:addMultipleAbandon}
+    ✓ 'p(95)<700' p(95)=569.82ms
+
+    http_req_duration{scenario:addMultipleComplete}
+    ✓ 'p(95)<1200' p(95)=737.91ms
+
+    http_req_duration{scenario:browseCatalog}
+    ✓ 'p(95)<400' p(95)=213.17ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 1646    4.987891/s
+    checks_succeeded...: 100.00% 1646 out of 1646
+    checks_failed......: 0.00%   0 out of 1646
+
+    ✓ regions ok
+    ✓ collections ok
+    ✓ products list ok
+    ✓ product details ok
+    ✓ offers list ok
+    ✓ create cart ok
+    ✓ add to cart ok
+    ✓ view cart ok
+    ✓ selected region ok
+    ✓ update cart ok
+    ✓ add shipping methods ok
+    ✓ create payment collection ok
+    ✓ create payment session ok
+    ✓ create order group ok
+    ✓ add promotion ok
+
+    CUSTOM
+    order_seller_splits...................: 38     0.115152/s
+    orders_placed.........................: 15     0.045455/s
+
+    HTTP
+    http_req_duration.....................: avg=136.9ms  min=49.91ms med=86.9ms   max=939.38ms p(90)=269.12ms p(95)=484.5ms 
+      { expected_response:true }..........: avg=136.9ms  min=49.91ms med=86.9ms   max=939.38ms p(90)=269.12ms p(95)=484.5ms 
+      { scenario:addBrowseAddAbandon }....: avg=188.37ms min=51.5ms  med=114.71ms max=706.14ms p(90)=472.05ms p(95)=519.97ms
+      { scenario:addBrowseAddComplete }...: avg=221.76ms min=52.51ms med=128.87ms max=939.38ms p(90)=549.81ms p(95)=745.37ms
+      { scenario:addMultipleAbandon }.....: avg=237.58ms min=51.7ms  med=123.42ms max=699.73ms p(90)=537.76ms p(95)=569.82ms
+      { scenario:addMultipleComplete }....: avg=254.23ms min=52.84ms med=145.5ms  max=921.96ms p(90)=607.23ms p(95)=737.91ms
+      { scenario:browseCatalog }..........: avg=96.31ms  min=49.91ms med=79.54ms  max=550.48ms p(90)=153.1ms  p(95)=213.17ms
+    http_req_failed.......................: 0.00%  0 out of 2445
+    http_reqs.............................: 2445   7.40911/s
+
+    EXECUTION
+    iteration_duration....................: avg=23.2s    min=12.75s  med=18.37s   max=1m14s    p(90)=41.36s   p(95)=57.21s  
+    iterations............................: 251    0.760608/s
+    vus...................................: 2      min=2         max=23
+    vus_max...............................: 23     min=23        max=23
+
+    NETWORK
+    data_received.........................: 94 MB  283 kB/s
+    data_sent.............................: 592 kB 1.8 kB/s
+
+
+
