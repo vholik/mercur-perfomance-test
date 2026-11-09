@@ -1,0 +1,73 @@
+
+
+  █ THRESHOLDS 
+
+    http_req_duration{scenario:addBrowseAddAbandon}
+    ✓ 'p(95)<700' p(95)=623.05ms
+
+    http_req_duration{scenario:addBrowseAddComplete}
+    ✓ 'p(95)<1200' p(95)=1.05s
+
+    http_req_duration{scenario:addMultipleAbandon}
+    ✗ 'p(95)<700' p(95)=927.65ms
+
+    http_req_duration{scenario:addMultipleComplete}
+    ✓ 'p(95)<1200' p(95)=1.11s
+
+    http_req_duration{scenario:browseCatalog}
+    ✗ 'p(95)<400' p(95)=668.89ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 1558    4.721504/s
+    checks_succeeded...: 100.00% 1558 out of 1558
+    checks_failed......: 0.00%   0 out of 1558
+
+    ✓ regions ok
+    ✓ collections ok
+    ✓ products list ok
+    ✓ product details ok
+    ✓ offers list ok
+    ✓ create cart ok
+    ✓ add to cart ok
+    ✓ view cart ok
+    ✓ selected region ok
+    ✓ update cart with address ok
+    ✓ add shipping method ok
+    ✓ create payment collection ok
+    ✓ create payment session ok
+    ✓ create order group ok
+    ✓ add promotion ok
+
+    CUSTOM
+    order_seller_splits...................: 34     0.103037/s
+    orders_placed.........................: 14     0.042427/s
+
+    HTTP
+    http_req_duration.....................: avg=282.81ms min=50.91ms med=156.53ms max=2.41s    p(90)=631.66ms p(95)=820.52ms
+      { expected_response:true }..........: avg=282.81ms min=50.91ms med=156.53ms max=2.41s    p(90)=631.66ms p(95)=820.52ms
+      { scenario:addBrowseAddAbandon }....: avg=288.74ms min=56.38ms med=223.86ms max=781.17ms p(90)=596.52ms p(95)=623.05ms
+      { scenario:addBrowseAddComplete }...: avg=409.8ms  min=54.54ms med=266.41ms max=2.25s    p(90)=924.68ms p(95)=1.05s   
+      { scenario:addMultipleAbandon }.....: avg=386ms    min=56.93ms med=299.13ms max=1.58s    p(90)=774.29ms p(95)=927.65ms
+      { scenario:addMultipleComplete }....: avg=447.08ms min=53.72ms med=288.67ms max=2.41s    p(90)=993.86ms p(95)=1.11s   
+      { scenario:browseCatalog }..........: avg=234.82ms min=50.91ms med=135.33ms max=2.05s    p(90)=551.62ms p(95)=668.89ms
+    http_req_failed.......................: 0.00%  0 out of 2308
+    http_reqs.............................: 2308   6.994373/s
+
+    EXECUTION
+    iteration_duration....................: avg=24.51s   min=13.62s  med=19.6s    max=1m19s    p(90)=43.25s   p(95)=1m1s    
+    iterations............................: 236    0.715196/s
+    vus...................................: 2      min=2         max=23
+    vus_max...............................: 23     min=23        max=23
+
+    NETWORK
+    data_received.........................: 88 MB  265 kB/s
+    data_sent.............................: 550 kB 1.7 kB/s
+
+
+
+time="2026-11-09T17:30:41+01:00" level=error msg="thresholds on metrics 'http_req_duration{scenario:addMultipleAbandon}, http_req_duration{scenario:browseCatalog}' have been crossed"

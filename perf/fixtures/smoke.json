@@ -1,0 +1,54 @@
+{
+  "dataset": "smoke",
+  "endpoint": "https://mercur.medusajs.app",
+  "publishable_key": "pk_e9d970b50a3ff2c72a2ba4569625957d8865055619899cfcbfb676f457113726",
+  "regions": [
+    {
+      "id": "reg_01M70H19GE75PRFET9SYE6YWKP",
+      "name": "Europe",
+      "currency_code": "eur",
+      "countries": [
+        "de",
+        "fr",
+        "nl",
+        "es",
+        "it"
+      ]
+    },
+    {
+      "id": "reg_01M70H19GE9R95VQQ81FNTJPVN",
+      "name": "Nordics",
+      "currency_code": "eur",
+      "countries": [
+        "dk",
+        "se",
+        "fi"
+      ]
+    },
+    {
+      "id": "reg_01M70H19GEJ6WBA90JPEQX9GDQ",
+      "name": "United States",
+      "currency_code": "usd",
+      "countries": [
+        "us"
+      ]
+    },
+    {
+      "id": "reg_01M70H19GE7FZ6MRC89ABDK2HE",
+      "name": "Canada",
+      "currency_code": "usd",
+      "countries": [
+        "ca"
+      ]
+    }
+  ],
+  "payment_provider_id": "pp_system_default",
+  "promo_code": "10OFF",
+  "counts": {
+    "sellers": 10,
+    "products": 200,
+    "variants": 610,
+    "offers": 2139
+  },
+  "seeded_at": "2026-11-09T16:07:48.544Z"
+}

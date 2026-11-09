@@ -55,3 +55,7 @@ docs/specs/
 !.yarn/patches
 !.yarn/releases
 .pnp.*
+
+# load-test artefacts
+*.dump
+perf/results/*.csv
