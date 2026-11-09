@@ -9,6 +9,9 @@ import CommissionModuleService from "../../../modules/commission/service"
 
 type UpsertCommissionLinesStepInput = {
   commission_lines: CreateCommissionLineDTO[]
+  // Lines for orders created in the same transaction have nothing to replace,
+  // so the lookup of existing anchors is skipped.
+  create_only?: boolean
 }
 
 type UpsertCommissionLinesCompensation = {
@@ -52,14 +55,14 @@ export const upsertCommissionLinesStep = createStep(
       MercurModules.COMMISSION
     )
 
-    const filters = anchorFilters(input.commission_lines)
+    const filters = input.create_only ? [] : anchorFilters(input.commission_lines)
     const replaced = filters.length
       ? await service.listCommissionLines({ $or: filters })
       : []
 
-    const commissionLines = await service.upsertCommissionLines(
-      input.commission_lines
-    )
+    const commissionLines = input.create_only
+      ? await service.createCommissionLines(input.commission_lines)
+      : await service.upsertCommissionLines(input.commission_lines)
 
     return new StepResponse(commissionLines, {
       created_ids: commissionLines.map((line) => line.id),

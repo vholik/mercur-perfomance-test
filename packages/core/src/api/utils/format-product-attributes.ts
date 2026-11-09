@@ -97,6 +97,9 @@ export function wrapProductWithProductAttributes(products: any[]): void {
  * populate that resolves empty on the remote joiner — so it is resolved
  * directly with a single in-module `product_attribute → values` read.
  */
+// The attribute catalog changes with configuration, not with traffic.
+const ATTRIBUTE_VALUES_CACHE_TTL = 3600
+
 export async function enrichProductAttributes(
   scope: MedusaContainer,
   products: any[],
@@ -116,11 +119,21 @@ export async function enrichProductAttributes(
   if (!missingIds.size) return
 
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "product_attribute",
-    fields: ["id", "values.id", "values.name", "values.rank"],
-    filters: { id: Array.from(missingIds) },
-  })
+  const { data } = await query.graph(
+    {
+      entity: "product_attribute",
+      fields: ["id", "values.id", "values.name", "values.rank"],
+      filters: { id: Array.from(missingIds).sort() },
+    },
+    {
+      cache: {
+        enable: true,
+        ttl: ATTRIBUTE_VALUES_CACHE_TTL,
+        tags: ["ProductAttribute:list:*", "ProductAttributeValue:list:*"],
+        computeAutomaticTags: true,
+      },
+    },
+  )
 
   const valuesById = new Map<string, WrappedProductAttributeValueDTO[]>(
     ((data ?? []) as ProductAttributeDTO[]).map((a) => [

@@ -7,13 +7,16 @@ import {
   type Hook,
   type ReturnWorkflow,
 } from "@medusajs/framework/workflows-sdk"
-import { useQueryGraphStep } from "@medusajs/medusa/core-flows"
 import {
   CommissionCalculationContext,
   CommissionLineDTO,
 } from "@mercurjs/types"
 
-import { getCommissionLinesStep, upsertCommissionLinesStep } from "../steps"
+import {
+  getCommissionLinesStep,
+  resolveCommissionContextsStep,
+  upsertCommissionLinesStep,
+} from "../steps"
 
 // The order module only decorates totals when a top-level total field such
 // as `subtotal` is selected, and derives line totals from the raw columns in
@@ -42,6 +45,12 @@ const orderFields = [
 
 export type RefreshOrderCommissionLinesWorkflowInput = {
   order_ids: string[]
+  /**
+   * Calculation contexts the caller already holds (checkout builds them from
+   * the cart it just split). When given, the orders are not read again and the
+   * lines are created rather than upserted.
+   */
+  contexts?: CommissionCalculationContext[]
 }
 
 export const refreshOrderCommissionLinesWorkflowId = "refresh-order-commission-lines"
@@ -84,46 +93,10 @@ export const refreshOrderCommissionLinesWorkflow: ReturnWorkflow<
   function (
     input: WorkflowData<RefreshOrderCommissionLinesWorkflowInput>
   ) {
-    const { data: orders } = useQueryGraphStep({
-      entity: "order",
+    const commissionContexts = resolveCommissionContextsStep({
+      order_ids: input.order_ids,
+      contexts: input.contexts,
       fields: orderFields,
-      filters: { id: input.order_ids },
-      options: {
-        throwIfKeyNotFound: true,
-      },
-    }).config({ name: "fetch-orders" })
-
-    const commissionContexts = transform({ orders }, ({ orders }) => {
-      return orders.map((order: any): CommissionCalculationContext => ({
-        currency_code: order.currency_code,
-        order_id: order.id,
-        seller_id: order.items?.[0]?.offer?.seller_id,
-        items: (order.items ?? []).map((item: any) => ({
-          id: item.id,
-          subtotal: item.subtotal,
-          tax_total: item.tax_total,
-          total: item.total,
-          product: item.product
-            ? {
-              id: item.product.id,
-              collection_id: item.product.collection_id,
-              categories: item.product.categories,
-              tags: item.product.tags,
-              type_id: item.product.type_id,
-              seller: item.offer?.seller_id
-                ? { id: item.offer.seller_id }
-                : undefined,
-              attribute_value_ids: (item.product.attribute_values ?? [])
-                .map((value: { id: string }) => value.id),
-            }
-            : undefined,
-        })),
-        shipping_methods: (order.shipping_methods ?? []).map((method: any) => ({
-          id: method.id,
-          subtotal: method.subtotal,
-          tax_total: method.tax_total,
-        })),
-      }))
     })
 
     const setCommissionContext = createHook("setCommissionContext", {
@@ -139,8 +112,11 @@ export const refreshOrderCommissionLinesWorkflow: ReturnWorkflow<
 
     const commissionLines = getCommissionLinesStep(contexts)
 
+    const createOnly = transform({ input }, ({ input }) => !!input.contexts)
+
     const upsertedCommissionLines = upsertCommissionLinesStep({
       commission_lines: commissionLines,
+      create_only: createOnly,
     })
 
     const commissionLinesUpserted = createHook("commissionLinesUpserted", {

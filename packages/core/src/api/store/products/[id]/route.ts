@@ -9,9 +9,13 @@ import {
 
 import {
   enrichProductAttributes,
+  withVariantPriceSetField,
   wrapProductVariantsWithOfferPrice,
 } from "../../../utils"
-import { splitComputedVariantFields } from "../helpers"
+import {
+  splitComputedVariantFields,
+  stripPricingContextFilters,
+} from "../helpers"
 
 export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -29,16 +33,13 @@ export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
   const { fields, withCalculatedPrice } = splitComputedVariantFields(
     req.queryConfig.fields
   )
-  req.queryConfig.fields = fields
+  req.queryConfig.fields = withCalculatedPrice
+    ? withVariantPriceSetField(fields)
+    : fields
 
-  // region_id / currency_code are consumed by setPricingContext only —
-  // the Product entity has neither column, so passing them through
-  // raises `Trying to query by not existing property Product.region_id`.
-  const {
-    region_id: _r,
-    currency_code: _c,
-    ...productFilters
-  } = (req.filterableFields ?? {}) as Record<string, unknown>
+  const productFilters = stripPricingContextFilters(
+    req.filterableFields as Record<string, unknown> | undefined
+  )
 
   const {
     data: [product],

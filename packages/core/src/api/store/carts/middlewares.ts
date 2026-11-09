@@ -9,6 +9,8 @@ import { ORIGINAL_MIDDLEWARES } from "../../../utils/disable-medusa-middlewares"
 import { storeCompleteCartQueryConfig } from "./[id]/complete/query-config"
 import { StoreCompleteCartParams } from "./[id]/complete/validators"
 import { StoreAddCartLineItem } from "./[id]/line-items/validators"
+import { StoreGetCartsCart } from "@medusajs/medusa/api/store/carts/validators"
+import { retrieveTransformQueryConfig } from "@medusajs/medusa/api/store/carts/query-config"
 
 const OVERRIDDEN_ROUTES = new Set([
     "POST /store/carts/:id/complete",
@@ -82,6 +84,12 @@ export const storeCartsMiddlewares: MiddlewareRoute[] = [
     {
         method: ["POST"],
         matcher: "/store/carts/:id/line-items",
-        middlewares: [validateAndTransformBody(StoreAddCartLineItem)],
+        middlewares: [
+            validateAndTransformBody(StoreAddCartLineItem),
+            validateAndTransformQuery(
+                StoreGetCartsCart,
+                retrieveTransformQueryConfig
+            ),
+        ],
     },
 ]

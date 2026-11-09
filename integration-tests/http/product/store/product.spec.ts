@@ -355,6 +355,123 @@ medusaIntegrationTestRunner({
                 })
             })
 
+            describe("sales channel filter", () => {
+                let otherChannel: any
+
+                const attachToChannel = async (
+                    productId: string,
+                    channelId: string
+                ) => {
+                    const link = appContainer.resolve(
+                        ContainerRegistrationKeys.LINK
+                    )
+                    await link.create({
+                        [Modules.PRODUCT]: { product_id: productId },
+                        [Modules.SALES_CHANNEL]: {
+                            sales_channel_id: channelId,
+                        },
+                    })
+                    await waitForIndexedProducts(appContainer, [
+                        {
+                            id: productId,
+                            sales_channel_id: channelId,
+                            restricted: true,
+                        },
+                    ])
+                }
+
+                beforeEach(async () => {
+                    const salesChannelModule =
+                        appContainer.resolve<ISalesChannelModuleService>(
+                            Modules.SALES_CHANNEL
+                        )
+                    otherChannel = await salesChannelModule.createSalesChannels({
+                        name: "Other Store",
+                    })
+                })
+
+                it("lists only the products of the requested sales channel", async () => {
+                    const inChannel = await createProduct(approvedSellerHeaders, {
+                        title: "In Channel",
+                    })
+                    const elsewhere = await createProduct(approvedSellerHeaders, {
+                        title: "Elsewhere",
+                    })
+                    await attachToChannel(inChannel.id, salesChannel.id)
+                    await attachToChannel(elsewhere.id, otherChannel.id)
+
+                    const response = await api.get(
+                        `/store/products?sales_channel_id=${salesChannel.id}`,
+                        storeHeaders
+                    )
+                    expect(response.status).toEqual(200)
+                    const ids = response.data.products.map((p: any) => p.id)
+                    expect(ids).toEqual([inChannel.id])
+
+                    const unscoped = await api.get(
+                        `/store/products`,
+                        storeHeaders
+                    )
+                    const allIds = unscoped.data.products.map((p: any) => p.id)
+                    expect(allIds).toContain(inChannel.id)
+                    expect(allIds).toContain(elsewhere.id)
+                })
+
+                it("keeps the filter when the list cannot use the index", async () => {
+                    const inChannel = await createProduct(approvedSellerHeaders, {
+                        title: "Searchable In Channel",
+                    })
+                    const elsewhere = await createProduct(approvedSellerHeaders, {
+                        title: "Searchable Elsewhere",
+                    })
+                    await attachToChannel(inChannel.id, salesChannel.id)
+                    await attachToChannel(elsewhere.id, otherChannel.id)
+
+                    const response = await api.get(
+                        `/store/products?q=Searchable&sales_channel_id=${salesChannel.id}`,
+                        storeHeaders
+                    )
+                    const ids = response.data.products.map((p: any) => p.id)
+                    expect(ids).toEqual([inChannel.id])
+                })
+
+                it("rejects a sales channel the publishable key does not cover", async () => {
+                    const response = await api
+                        .get(
+                            `/store/products?sales_channel_id=${otherChannel.id}`,
+                            storeHeaders
+                        )
+                        .catch((e) => e.response)
+
+                    expect(response.status).toEqual(400)
+                    expect(response.data.message).toEqual(
+                        "Requested sales channel is not part of the publishable key"
+                    )
+                })
+
+                it("returns 404 for a product outside the requested sales channel", async () => {
+                    const elsewhere = await createProduct(approvedSellerHeaders, {
+                        title: "Elsewhere Detail",
+                    })
+                    await attachToChannel(elsewhere.id, otherChannel.id)
+
+                    const hidden = await api
+                        .get(
+                            `/store/products/${elsewhere.id}?sales_channel_id=${salesChannel.id}`,
+                            storeHeaders
+                        )
+                        .catch((e) => e.response)
+                    expect(hidden.status).toEqual(404)
+
+                    const visible = await api.get(
+                        `/store/products/${elsewhere.id}`,
+                        storeHeaders
+                    )
+                    expect(visible.status).toEqual(200)
+                    expect(visible.data.product.id).toEqual(elsewhere.id)
+                })
+            })
+
             describe("cached responses", () => {
                 const listIds = async () =>
                     (

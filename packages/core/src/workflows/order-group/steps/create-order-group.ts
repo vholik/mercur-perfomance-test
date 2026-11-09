@@ -3,7 +3,12 @@ import { CreateOrderGroupDTO, MercurModules, OrderGroupDTO } from "@mercurjs/typ
 
 import SellerModuleService from "../../../modules/seller/service"
 
-type CreateOrderGroupStepInput = CreateOrderGroupDTO
+// Checkout already looked the cart's group up alongside its other reads and
+// passes the answer in, so the step doesn't query the aggregate repository
+// again.
+type CreateOrderGroupStepInput = CreateOrderGroupDTO & {
+  existing_id?: string | null
+}
 
 type CreateOrderGroupStepOutput = Pick<
   OrderGroupDTO,
@@ -12,14 +17,16 @@ type CreateOrderGroupStepOutput = Pick<
 
 export const createOrderGroupStep = createStep(
   "create-order-group",
-  async (input: CreateOrderGroupStepInput, { container }) => {
+  async (
+    { existing_id, ...input }: CreateOrderGroupStepInput,
+    { container }
+  ) => {
     const service = container.resolve<SellerModuleService>(MercurModules.SELLER)
 
     // A completion interrupted before its orders were created leaves the group
     // behind; reuse it so a retry doesn't create a second one for the cart.
-    const [existing] = await service.listOrderGroups({ cart_id: input.cart_id })
-
-    if (existing) {
+    if (existing_id) {
+      const existing = await service.retrieveOrderGroup(existing_id)
       return new StepResponse<CreateOrderGroupStepOutput, string | null>(
         existing,
         null

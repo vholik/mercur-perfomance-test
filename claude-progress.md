@@ -14,6 +14,39 @@ session detail aggressively. The per-spec source of truth lives in
   `bun run test:integration:http -- <pattern>`
 - **Current blocker**: none
 
+## Session — Perf plan steps 3–5 (2026-11-09), branch `main`, uncommitted
+
+- **Goal.** Items 3–5 of `session-handoff.md`: offer-price wrap, store product
+  middlewares, cart hook collapse, cached priced page + tax rates.
+- **Landed.** `api/utils/offers.ts` (single-table offer read, price-rule
+  lookup, `useCache` for prices and tax lines, env TTL knobs),
+  `api/store/products/{middlewares,route,[id]/route,helpers,validators}.ts`
+  (one cached region read for pricing + tax context, explicit `sales_channel_id`
+  filter via Index or link), `api/utils/list-products.ts`
+  (`canUseProductIndex`), `workflows/cart/hooks/{set-pricing-context,validate}.ts`
+  (one read per refresh, two per add), hook
+  `before-refreshing-payment-collection.ts` removed (merged into the refresh
+  pricing hook). Handoff corrected: Medusa's store product middlewares were
+  already disabled, so #13's "double run" did not exist.
+- **Verified.** core `tsc --noEmit` + `yarn build` clean; integration
+  `product/store` 30/30, `offer/cart` 29 passed/1 skipped, `offer/order` 7/7;
+  unit cart+offer 15/15. Not measured with k6 yet.
+- **Second pass (same day).** Checkout: payment split gated on captures,
+  commission contexts built from the cart and created in the parallel block
+  (`resolveCommissionContextsStep`, `create_only`), order group id passed into
+  `createOrderGroupStep`, offer links merged into `createLinksStep`, telemetry
+  milestone memoised. Cart: `additional_data` on array shipping payloads,
+  sales-channel locations via a cached lookup instead of two joiner hops,
+  line-items honours `?fields=`. Products: attribute value defaults trimmed and
+  the enrich read cached. Verified: order/store 16, payment webhook 5,
+  commission 8, offer/cart 29, offer/order 7, product/store 32,
+  promotions/store 9, unit 15 — all passing. Not done: #8 (shipping re-pricing
+  needs a core-flows patch).
+- **Owed / next.** Deploy and re-run the 20-VU smoke with and without
+  `MERCUR_STORE_PRICE_CACHE_TTL=0`; plan steps 1–2 (k6 script shape); decide
+  whether implicit publishable-key channel scoping is wanted (needs vendor
+  products linked to a channel first).
+
 ## Session — Medusa 2.22.3 upgrade (2026-11-04), branch `chore/medusa-2-22-3`
 
 Every `@medusajs/*` pin moved 2.22.0 → 2.22.3 and every peer range `>=2.22.0` → `>=2.22.3` (packages,

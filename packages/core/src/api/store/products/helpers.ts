@@ -21,3 +21,23 @@ export const splitComputedVariantFields = (fields: string[]) => {
 
   return { fields: filteredFields, withCalculatedPrice }
 }
+
+// Consumed by the pricing/tax context middlewares, not product columns:
+// query.graph errors on them and the index rejects every non-indexed key.
+const PRICING_CONTEXT_FILTER_KEYS = [
+  "region_id",
+  "currency_code",
+  "country_code",
+  "province",
+  "cart_id",
+]
+
+export const stripPricingContextFilters = (
+  filters: Record<string, unknown> | undefined
+): Record<string, unknown> => {
+  const rest = { ...(filters ?? {}) }
+  for (const key of PRICING_CONTEXT_FILTER_KEYS) {
+    delete rest[key]
+  }
+  return rest
+}

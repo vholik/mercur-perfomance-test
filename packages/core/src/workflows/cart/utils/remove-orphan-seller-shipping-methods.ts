@@ -2,7 +2,7 @@ import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { findOrphanSellerShippingMethods } from "./find-orphan-seller-shipping-methods"
 
-type CartShippingRows = {
+export type CartShippingRows = {
   items?: Array<{ offer?: { seller_id?: string | null } | null } | null>
   shipping_methods?: Array<{
     id: string
@@ -10,24 +10,19 @@ type CartShippingRows = {
   } | null>
 }
 
+export const cartShippingRowFields = [
+  "id",
+  "items.offer.seller_id",
+  "shipping_methods.id",
+  "shipping_methods.shipping_option_id",
+]
+
 // A seller's shipping method outlives its last line only until the cart is
 // refreshed; the store API has no route to drop a method by hand.
-export const removeOrphanSellerShippingMethods = async (
+export const removeOrphanSellerShippingMethodsFromCart = async (
   container: MedusaContainer,
-  cartId: string,
+  cart: CartShippingRows | undefined,
 ): Promise<string[]> => {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "cart",
-    fields: [
-      "id",
-      "items.offer.seller_id",
-      "shipping_methods.id",
-      "shipping_methods.shipping_option_id",
-    ],
-    filters: { id: cartId },
-  })
-  const cart = data[0] as CartShippingRows | undefined
   const shippingMethods = (cart?.shipping_methods ?? []).filter(
     (method): method is NonNullable<typeof method> => !!method,
   )
@@ -35,6 +30,7 @@ export const removeOrphanSellerShippingMethods = async (
     return []
   }
 
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const optionIds = Array.from(
     new Set(
       shippingMethods
@@ -66,4 +62,20 @@ export const removeOrphanSellerShippingMethods = async (
   const ids = orphans.map((method) => method.id)
   await cartModule.softDeleteShippingMethods(ids)
   return ids
+}
+
+export const removeOrphanSellerShippingMethods = async (
+  container: MedusaContainer,
+  cartId: string,
+): Promise<string[]> => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "cart",
+    fields: cartShippingRowFields,
+    filters: { id: cartId },
+  })
+  return removeOrphanSellerShippingMethodsFromCart(
+    container,
+    data[0] as CartShippingRows | undefined,
+  )
 }

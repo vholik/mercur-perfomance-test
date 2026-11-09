@@ -8,6 +8,7 @@ import {
   calculateAmountsWithTax,
   ContainerRegistrationKeys,
   Modules,
+  useCache,
 } from "@medusajs/framework/utils"
 import type {
   ItemTaxLineDTO,
@@ -214,17 +215,13 @@ type StoreRequestWithContext = MedusaStoreRequest<unknown> & {
   }
 }
 
-type OfferPriceRow = {
-  id: string
-  variant_id: string
-  product_variant?: { price_set?: { id?: string } | null } | null
-  prices?: { id?: string }[] | null
-}
+type OfferByVariantRow = { id: string; variant_id: string }
 
 type PriceableVariant = {
   id: string
   offer_id?: string | null
   calculated_price?: Record<string, unknown> | null
+  price_set?: { id?: string | null } | null
 }
 
 type PriceableProduct = {
@@ -232,14 +229,65 @@ type PriceableProduct = {
   variants?: PriceableVariant[] | null
 }
 
+type CalculatedPriceRow = {
+  id: string
+  calculated_price?: { id?: string | null } | null
+}
+
+type OfferPriceHit = { offerId: string | null; price: Record<string, unknown> }
+
+// Seconds; `0` disables. Price and tax writes clear the entries through their
+// tags, the TTL bounds anything that reaches the cache without an event.
+const readCacheTtl = (name: string, fallback: number): number => {
+  const raw = process.env[name]
+  if (raw === undefined || raw === "") {
+    return fallback
+  }
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+const OFFER_PRICE_CACHE_TTL = readCacheTtl("MERCUR_STORE_PRICE_CACHE_TTL", 60)
+const TAX_LINES_CACHE_TTL = readCacheTtl("MERCUR_STORE_TAX_CACHE_TTL", 300)
+
+const OFFER_PRICE_CACHE_TAGS = [
+  "Price:list:*",
+  "PriceRule:list:*",
+  "PriceSet:list:*",
+  "PriceList:list:*",
+  "PriceListRule:list:*",
+  "Offer:list:*",
+  "LinkOfferPrice:list:*",
+]
+
+const TAX_LINES_CACHE_TAGS = [
+  "TaxRate:list:*",
+  "TaxRateRule:list:*",
+  "TaxRegion:list:*",
+  "TaxProvider:list:*",
+]
+
+// The graph field that gives each variant its price set; requested only for
+// priced reads and stripped from the response again.
+export const VARIANT_PRICE_SET_FIELD = "variants.price_set.id"
+
+export const withVariantPriceSetField = (fields: string[]): string[] =>
+  fields.includes(VARIANT_PRICE_SET_FIELD)
+    ? fields
+    : [...fields, VARIANT_PRICE_SET_FIELD]
+
 /**
  * Sets each variant's cheapest offer as `variant.offer_id` + its
  * `variant.calculated_price`, in place. Offer prices share the variant price
  * set scoped by an `offer_id` rule, so passing the union of offer ids as the
  * pricing context lets one batched `calculatePrices` return the lowest matching
- * price per price set; `offer_id` is recovered from the winning price row via a
- * `price.id → offer.id` map. Variants without an offer get `null` for both.
+ * price per price set; `offer_id` is recovered from the winning price row via
+ * its `offer_id` price rule. Variants without an offer get `null` for both.
  * No-ops without a pricing context (caller did not request calculated prices).
+ *
+ * The variant's price set id must already be on the row
+ * (`variants.price_set.id`, see `withVariantPriceSetField`): that keeps the
+ * offer read a single-table lookup instead of a hop through variant and prices.
  */
 export const wrapProductVariantsWithOfferPrice = async (
   req: StoreRequestWithContext,
@@ -249,84 +297,113 @@ export const wrapProductVariantsWithOfferPrice = async (
     return
   }
 
-  const variantIds = Array.from(
-    new Set(products.flatMap((p) => (p.variants ?? []).map((v) => v.id)))
-  )
+  const priceSetToVariant = new Map<string, string>()
+  const variantIds: string[] = []
+  for (const product of products) {
+    for (const variant of product.variants ?? []) {
+      variantIds.push(variant.id)
+      const priceSetId = variant.price_set?.id
+      if (priceSetId) {
+        priceSetToVariant.set(priceSetId, variant.id)
+      }
+      delete variant.price_set
+    }
+  }
   if (!variantIds.length) {
     return
   }
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: offers } = await query.graph({
-    entity: "offer",
-    fields: ["id", "variant_id", "product_variant.price_set.id", "prices.id"],
-    filters: { variant_id: variantIds },
-  })
-  if (!offers.length) {
-    return
-  }
-
-  const priceSetToVariant = new Map<string, string>()
-  const priceIdToOffer = new Map<string, string>()
-  const offerIds: string[] = []
-  const priceSetIds = new Set<string>()
-  for (const offer of offers as OfferPriceRow[]) {
-    const priceSetId = offer.product_variant?.price_set?.id
-    if (!priceSetId) {
-      continue
-    }
-    priceSetIds.add(priceSetId)
-    priceSetToVariant.set(priceSetId, offer.variant_id)
-    offerIds.push(offer.id)
-    for (const price of offer.prices ?? []) {
-      if (price?.id) {
-        priceIdToOffer.set(price.id, offer.id)
-      }
-    }
-  }
-  if (!priceSetIds.size) {
-    return
-  }
-
-  const context: Record<string, unknown> = {
-    ...(req.pricingContext as Record<string, unknown>),
-    offer_id: offerIds,
-  }
-  const pricingModule = req.scope.resolve(Modules.PRICING)
-  const calculated = await pricingModule.calculatePrices(
-    { id: Array.from(priceSetIds) },
-    { context: context as Record<string, string | number> }
-  )
-
-  const byVariant = new Map<
-    string,
-    { offerId: string | null; price: Record<string, unknown> }
-  >()
-  for (const calc of calculated) {
-    const variantId = priceSetToVariant.get(calc.id)
-    if (!variantId) {
-      continue
-    }
-    const winningPriceId =
-      (calc as { calculated_price?: { id?: string | null } }).calculated_price
-        ?.id ?? null
-    byVariant.set(variantId, {
-      offerId: winningPriceId
-        ? priceIdToOffer.get(winningPriceId) ?? null
-        : null,
-      price: calc as unknown as Record<string, unknown>,
-    })
-  }
+  const byVariant: Record<string, OfferPriceHit> = priceSetToVariant.size
+    ? await useCache(
+        () => calculateOfferPrices(req, variantIds, priceSetToVariant),
+        {
+          enable: OFFER_PRICE_CACHE_TTL > 0,
+          key: [
+            "mercur:store-offer-prices",
+            Array.from(priceSetToVariant.entries()).sort(),
+            req.pricingContext,
+          ],
+          tags: OFFER_PRICE_CACHE_TAGS,
+          ttl: OFFER_PRICE_CACHE_TTL,
+          container: req.scope,
+        }
+      )
+    : {}
 
   for (const product of products) {
     for (const variant of product.variants ?? []) {
-      const hit = byVariant.get(variant.id)
+      const hit = byVariant[variant.id]
       variant.offer_id = hit?.offerId ?? null
       variant.calculated_price = hit?.price ?? null
     }
   }
 
   await wrapVariantsWithTaxPrices(req, products)
+}
+
+// Returns a plain object: the result is cached, and a Map would not survive
+// the JSON round trip.
+const calculateOfferPrices = async (
+  req: StoreRequestWithContext,
+  variantIds: string[],
+  priceSetToVariant: Map<string, string>
+): Promise<Record<string, OfferPriceHit>> => {
+  const byVariant: Record<string, OfferPriceHit> = {}
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: offers } = await query.graph({
+    entity: "offer",
+    fields: ["id", "variant_id"],
+    filters: { variant_id: Array.from(new Set(variantIds)) },
+  })
+  if (!offers.length) {
+    return byVariant
+  }
+
+  const offerIds = Array.from(
+    new Set((offers as OfferByVariantRow[]).map((offer) => offer.id))
+  )
+
+  const context: Record<string, unknown> = {
+    ...(req.pricingContext as Record<string, unknown>),
+    offer_id: offerIds,
+  }
+  const pricingModule = req.scope.resolve(Modules.PRICING)
+  const calculated = (await pricingModule.calculatePrices(
+    { id: Array.from(priceSetToVariant.keys()) },
+    { context: context as Record<string, string | number> }
+  )) as unknown as CalculatedPriceRow[]
+
+  const winningPriceIds = calculated
+    .map((calc) => calc.calculated_price?.id)
+    .filter((id): id is string => !!id)
+
+  const offerByPriceId = new Map<string, string>()
+  if (winningPriceIds.length) {
+    const rules = await pricingModule.listPriceRules(
+      { price_id: winningPriceIds, attribute: "offer_id" },
+      { select: ["price_id", "value"] }
+    )
+    for (const rule of rules) {
+      offerByPriceId.set(rule.price_id, rule.value)
+    }
+  }
+
+  for (const calc of calculated) {
+    const variantId = priceSetToVariant.get(calc.id)
+    if (!variantId) {
+      continue
+    }
+    const winningPriceId = calc.calculated_price?.id ?? null
+    byVariant[variantId] = {
+      offerId: winningPriceId
+        ? offerByPriceId.get(winningPriceId) ?? null
+        : null,
+      price: calc as unknown as Record<string, unknown>,
+    }
+  }
+
+  return byVariant
 }
 
 /**
@@ -368,11 +445,29 @@ const wrapVariantsWithTaxPrices = async (
     return
   }
 
-  const taxService = req.scope.resolve(Modules.TAX)
-  const taxLines = (await taxService.getTaxLines(
-    items,
-    req.taxContext.taxLineContext
-  )) as unknown as ItemTaxLineDTO[]
+  // Rates depend on the product and the address, not on the amount, so the
+  // key leaves `unit_price` out and one entry serves every price of a page.
+  const taxLineContext = req.taxContext.taxLineContext
+  const taxLines = await useCache(
+    async () => {
+      const taxService = req.scope.resolve(Modules.TAX)
+      return (await taxService.getTaxLines(
+        items,
+        taxLineContext
+      )) as unknown as ItemTaxLineDTO[]
+    },
+    {
+      enable: TAX_LINES_CACHE_TTL > 0,
+      key: [
+        "mercur:store-tax-lines",
+        taxLineContext.address,
+        items.map((item) => [item.id, item.product_id, item.currency_code]),
+      ],
+      tags: TAX_LINES_CACHE_TAGS,
+      ttl: TAX_LINES_CACHE_TTL,
+      container: req.scope,
+    }
+  )
 
   const taxRatesMap = new Map<string, ItemTaxLineDTO[]>()
   for (const taxLine of taxLines) {

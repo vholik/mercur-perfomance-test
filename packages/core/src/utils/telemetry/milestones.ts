@@ -32,7 +32,14 @@ export const isTelemetryConfigEnabled = (container: MedusaContainer) => {
  * Milestones are recorded from subscribers, which in a split deployment run in
  * the worker, so the worker-process rule that gates boot events does not apply.
  */
+// A milestone is claimed once per installation; once this process has seen
+// the claim fail or succeed there is nothing left to write for it.
+const settledMilestones = new Set<TelemetryMilestone>()
+
 export async function recordMilestone(container: MedusaContainer, milestone: TelemetryMilestone): Promise<boolean> {
+  if (settledMilestones.has(milestone)) {
+    return false
+  }
   try {
     const reason = telemetryDisabledReason({ configEnabled: isTelemetryConfigEnabled(container) })
     if (reason && reason !== "worker") {
@@ -42,6 +49,7 @@ export async function recordMilestone(container: MedusaContainer, milestone: Tel
     const service = container.resolve<TelemetryModuleService>(MercurModules.TELEMETRY)
     const installation = await service.getOrCreateInstallation()
     const isNew = await service.recordMilestone(milestone)
+    settledMilestones.add(milestone)
     if (!isNew) {
       return false
     }

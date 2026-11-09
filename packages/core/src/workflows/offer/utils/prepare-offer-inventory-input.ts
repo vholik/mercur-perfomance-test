@@ -1,5 +1,10 @@
-import { BigNumberInput } from "@medusajs/framework/types"
-import { BigNumber, MathBN, MedusaError } from "@medusajs/framework/utils"
+import { BigNumberInput, MedusaContainer } from "@medusajs/framework/types"
+import {
+  BigNumber,
+  ContainerRegistrationKeys,
+  MathBN,
+  MedusaError,
+} from "@medusajs/framework/utils"
 
 // `defineLink(...isList: true, isList: true, { extraColumns })` exposes
 // the pivot row on the writable side under the `<entity>_link` alias
@@ -20,9 +25,53 @@ export const requiredOfferFieldsForInventoryConfirmation = [
   "inventory_item_link.inventory_item.location_levels.reserved_quantity",
   "inventory_item_link.inventory_item.location_levels.raw_stocked_quantity",
   "inventory_item_link.inventory_item.location_levels.raw_reserved_quantity",
-  "inventory_item_link.inventory_item.location_levels.stock_locations.id",
-  "inventory_item_link.inventory_item.location_levels.stock_locations.sales_channels.id",
 ]
+
+// Which locations serve a sales channel changes with configuration, not with
+// carts, so the two extra joiner hops per inventory read (location level →
+// stock location → sales channels) are replaced by this cached lookup. Tags as
+// in Medusa's `salesChannelStockLocationCacheTags`: both hops are link tables
+// whose rows fire only their own link events.
+export const salesChannelLocationCacheTags = [
+  "SalesChannel:list:*",
+  "LinkSalesChannelStockLocation:list:*",
+]
+
+export const salesChannelLocationFields = ["id", "stock_locations.id"]
+
+export const resolveSalesChannelLocationIds = async (
+  container: MedusaContainer,
+  salesChannelId: string | null | undefined,
+): Promise<string[] | undefined> => {
+  if (!salesChannelId) {
+    return undefined
+  }
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph(
+    {
+      entity: "sales_channels",
+      fields: salesChannelLocationFields,
+      filters: { id: salesChannelId },
+    },
+    {
+      cache: {
+        enable: true,
+        tags: salesChannelLocationCacheTags,
+        computeAutomaticTags: true,
+      },
+    },
+  )
+  return toSalesChannelLocationIds(data)
+}
+
+export const toSalesChannelLocationIds = (
+  channels: Array<{ stock_locations?: Array<{ id: string } | null> | null } | null>,
+): string[] =>
+  (channels ?? []).flatMap((channel) =>
+    (channel?.stock_locations ?? []).flatMap((location) =>
+      location?.id ? [location.id] : [],
+    ),
+  )
 
 export type OfferInventoryItemLinkRow = {
   required_quantity?: number
@@ -52,6 +101,12 @@ export type OfferInventoryShape = {
 export type PrepareOfferInventoryInputData = {
   input: {
     sales_channel_id?: string
+    /**
+     * Stock locations attached to `sales_channel_id` (see
+     * `resolveSalesChannelLocationIds`). When given, the location levels'
+     * `stock_locations.sales_channels` relation is not consulted.
+     */
+    channel_location_ids?: string[]
     items: Array<{
       id?: string
       quantity: BigNumberInput
@@ -74,7 +129,10 @@ export type OfferConfirmInventoryItem = {
 export const prepareOfferInventoryInput = (
   data: PrepareOfferInventoryInputData,
 ): { items: OfferConfirmInventoryItem[] } => {
-  const { sales_channel_id, items, offers } = data.input
+  const { sales_channel_id, channel_location_ids, items, offers } = data.input
+  const channelLocationSet = channel_location_ids
+    ? new Set(channel_location_ids)
+    : undefined
 
   if (!items?.length) {
     return { items: [] }
@@ -124,6 +182,13 @@ export const prepareOfferInventoryInput = (
         )
         itemAvail.set(lvl.location_id, new BigNumber(stocked))
         itemAny.add(lvl.location_id)
+
+        if (channelLocationSet) {
+          if (sales_channel_id && channelLocationSet.has(lvl.location_id)) {
+            itemChannel.add(lvl.location_id)
+          }
+          continue
+        }
 
         for (const sl of lvl.stock_locations ?? []) {
           if (

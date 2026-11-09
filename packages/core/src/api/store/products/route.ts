@@ -5,9 +5,13 @@ import {
 import {
   enrichProductAttributes,
   listProducts,
+  withVariantPriceSetField,
   wrapProductVariantsWithOfferPrice,
 } from "../../utils"
-import { splitComputedVariantFields } from "./helpers"
+import {
+  splitComputedVariantFields,
+  stripPricingContextFilters,
+} from "./helpers"
 
 export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
   // `variants.calculated_price` / `variants.offer_id` are computed from the
@@ -15,19 +19,13 @@ export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
   const { fields, withCalculatedPrice } = splitComputedVariantFields(
     req.queryConfig.fields
   )
-  req.queryConfig.fields = fields
+  req.queryConfig.fields = withCalculatedPrice
+    ? withVariantPriceSetField(fields)
+    : fields
 
-  // Pricing-context keys feed setPricingContext / the offer-price wrap, not
-  // product columns: query.graph errors on region_id, and the index rejects
-  // every non-indexed key (`Field country_code is not indexed`).
-  const {
-    region_id: _r,
-    currency_code: _c,
-    country_code: _cc,
-    province: _p,
-    cart_id: _cart,
-    ...productFilters
-  } = (req.filterableFields ?? {}) as Record<string, unknown>
+  const productFilters = stripPricingContextFilters(
+    req.filterableFields as Record<string, unknown> | undefined
+  )
 
   const { products, count, estimate_count, offset, limit } = await listProducts(
     req.scope,

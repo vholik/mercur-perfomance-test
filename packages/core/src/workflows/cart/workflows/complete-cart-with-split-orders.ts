@@ -35,12 +35,11 @@ import {
     validateCartItemsStep,
     validateCartPaymentsStep,
 } from "@medusajs/medusa/core-flows"
-import { CreateOrderGroupDTO, MercurModules, SellerDTO } from "@mercurjs/types"
+import { CommissionCalculationContext, CreateOrderGroupDTO, MercurModules, SellerDTO } from "@mercurjs/types"
 import { createOrderGroupStep } from "../../order-group"
 import { OrderGroupWorkflowEvents } from "../../events"
 import {
     getPromotionSellerIdsStep,
-    mirrorLineItemOfferLinksToOrderStep,
     validateSellerCartItemsStep,
     validateSellerCartShippingStep,
 } from "../steps"
@@ -61,6 +60,9 @@ import { refreshOrderCommissionLinesWorkflow } from "../../commission/workflows/
 import {
     prepareOfferInventoryInput,
     requiredOfferFieldsForInventoryConfirmation,
+    salesChannelLocationCacheTags,
+    salesChannelLocationFields,
+    toSalesChannelLocationIds,
 } from "../../offer/utils"
 
 type CompleteCartWithSplitOrdersWorkflowInput = {
@@ -159,7 +161,7 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
 
         // Orders are only linked to the cart once they exist, so the order_cart
         // link (not the order group) marks a completed cart, as in Medusa.
-        const createdOrderGroup = when("create-order-group", { isCompleted }, ({ isCompleted }) => {
+        const completion = when("complete-cart-orders", { isCompleted }, ({ isCompleted }) => {
             return !isCompleted
         }).then(() => {
             const cartOptionIds = transform({ cart: cartData.data }, ({ cart }) => {
@@ -208,11 +210,17 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 }
             )
 
+            const salesChannelFilter = transform(
+                { cart: cartData.data },
+                ({ cart }) => ({ id: cart.sales_channel_id ?? "__none__" })
+            )
+
             const [
                 shippingOptionsData,
                 promotionSellerIds,
                 existingSellerCustomerLinks,
                 offersWithInventoryData,
+                salesChannelLocations,
             ] = parallelize(
                 useQueryGraphStep({
                     entity: "shipping_option",
@@ -238,7 +246,19 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                     entity: "offer",
                     fields: requiredOfferFieldsForInventoryConfirmation,
                     filters: { id: uniqueOffers },
-                }).config({ name: "fetch-offers-for-reservation" })
+                }).config({ name: "fetch-offers-for-reservation" }),
+                useQueryGraphStep({
+                    entity: "sales_channels",
+                    fields: salesChannelLocationFields,
+                    filters: salesChannelFilter,
+                    options: {
+                        cache: {
+                            enable: true,
+                            tags: salesChannelLocationCacheTags,
+                            computeAutomaticTags: true,
+                        },
+                    },
+                }).config({ name: "sales-channel-locations-query" })
             )
 
             validateSellerCartItemsStep({
@@ -248,11 +268,14 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 cart: cartData.data,
                 shippingOptions: shippingOptionsData.data as (ShippingOptionDTO & { seller: SellerDTO })[],
             })
-            const { sales_channel_id } = transform(
-                { cart: cartData.data },
-                (data) => {
+            const { sales_channel_id, channel_location_ids } = transform(
+                { cart: cartData.data, salesChannelLocations },
+                ({ cart, salesChannelLocations }) => {
                     return {
-                        sales_channel_id: data.cart.sales_channel_id,
+                        sales_channel_id: cart.sales_channel_id,
+                        channel_location_ids: cart.sales_channel_id
+                            ? toSalesChannelLocationIds(salesChannelLocations.data)
+                            : undefined,
                     }
                 }
             )
@@ -429,13 +452,14 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
             })
 
             const orderGroupData = transform(
-                { cart: cartData.data },
-                ({ cart }) => {
+                { cart: cartData.data, existingOrderGroupId },
+                ({ cart, existingOrderGroupId }) => {
                     return {
                         customer_id: cart.customer?.id,
                         cart_id: cart.id,
                         metadata: cart.metadata ?? null,
-                    } satisfies CreateOrderGroupDTO
+                        existing_id: existingOrderGroupId ?? null,
+                    } satisfies CreateOrderGroupDTO & { existing_id: string | null }
                 }
             )
 
@@ -502,6 +526,7 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 {
                     input: {
                         sales_channel_id,
+                        channel_location_ids,
                         items: offerReservationItems,
                         offers: offersWithInventoryData.data,
                     },
@@ -568,12 +593,18 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
             )
 
             const linksToCreate = transform(
-                { cart: cartData.data, createdOrders, createdOrderGroup, sellerOrdersMap, existingSellerCustomerLinks },
-                ({ cart, createdOrders, createdOrderGroup, sellerOrdersMap, existingSellerCustomerLinks }) => {
+                { cart: cartData.data, createdOrders, createdOrderGroup, sellerOrdersMap, existingSellerCustomerLinks, orderLineOfferPairs },
+                ({ cart, createdOrders, createdOrderGroup, sellerOrdersMap, existingSellerCustomerLinks, orderLineOfferPairs }) => {
                     const links: LinkDefinition[] = createdOrders.map((order) => ({
                         [Modules.ORDER]: { order_id: order.id },
                         [Modules.CART]: { cart_id: cart.id },
                     }))
+
+                    // The cart line ↔ offer links, mirrored onto the order lines.
+                    links.push(...orderLineOfferPairs.map((pair) => ({
+                        [Modules.ORDER]: { order_line_item_id: pair.order_line_item_id },
+                        [MercurModules.OFFER]: { offer_id: pair.offer_id },
+                    })))
 
                     if (cart.promotions?.length) {
                         cart.promotions.forEach((promotion: PromotionDTO & { seller?: SellerDTO }) => {
@@ -631,10 +662,78 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 return createdOrders.map((order) => ({ id: order.id }))
             })
 
+            // Order lines are created from the cart lines of their seller in
+            // order, so each order line maps back to the cart line (and its
+            // totals, product and offer) by position; the orders need not be
+            // read again for the commission calculation.
+            const commissionContexts = transform(
+                { cart: cartData.data, createdOrders, sellerOrdersMap, shippingOptionsData: shippingOptionsData.data },
+                ({ cart, createdOrders, sellerOrdersMap, shippingOptionsData }) => {
+                    const sellerByOrderId = new Map(
+                        Object.entries(sellerOrdersMap).map(([sellerId, orderId]) => [orderId, sellerId])
+                    )
+                    const sellerByOptionId = new Map(
+                        shippingOptionsData.map((so) => [so.id, so.seller?.id])
+                    )
+                    const toContext = (order: (typeof createdOrders)[number]): CommissionCalculationContext => {
+                        const sellerId = sellerByOrderId.get(order.id)
+                        const cartItems = (cart.items ?? []).filter(
+                            (item: any) => item.offer?.seller_id === sellerId
+                        )
+                        const cartShippingMethods = (cart.shipping_methods ?? []).filter(
+                            (sm) => sellerByOptionId.get(sm.shipping_option_id ?? "") === sellerId
+                        )
+                        return {
+                            currency_code: order.currency_code,
+                            order_id: order.id,
+                            seller_id: sellerId,
+                            items: (order.items ?? []).map((orderItem, index) => {
+                                const item = cartItems[index] as any
+                                const product = item?.variant?.product
+                                return {
+                                    id: orderItem.id,
+                                    subtotal: item?.subtotal,
+                                    tax_total: item?.tax_total,
+                                    total: item?.total,
+                                    product: product
+                                        ? {
+                                            id: product.id,
+                                            collection_id: product.collection?.id ?? product.collection_id,
+                                            categories: product.categories,
+                                            tags: product.tags,
+                                            type_id: product.type?.id ?? product.type_id,
+                                            seller: sellerId ? { id: sellerId } : undefined,
+                                            attribute_value_ids: (product.attribute_values ?? [])
+                                                .map((value: { id: string }) => value.id),
+                                        }
+                                        : undefined,
+                                }
+                            }),
+                            shipping_methods: (order.shipping_methods ?? []).map((method, index) => {
+                                const sm = cartShippingMethods[index]
+                                return {
+                                    id: method.id,
+                                    subtotal: sm?.subtotal,
+                                    tax_total: sm?.tax_total,
+                                }
+                            }),
+                        }
+                    }
+                    return createdOrders.map(toContext)
+                }
+            )
+
+            const orderIds = transform({ createdOrders }, ({ createdOrders }) => {
+                return createdOrders.map((order) => order.id)
+            })
+
             parallelize(
                 createLinksStep(linksToCreate),
-                mirrorLineItemOfferLinksToOrderStep({
-                    pairs: orderLineOfferPairs,
+                refreshOrderCommissionLinesWorkflow.runAsStep({
+                    input: {
+                        order_ids: orderIds,
+                        contexts: commissionContexts,
+                    }
                 }),
                 updateCartsStep([updateCompletedAt]),
                 reserveInventoryStep(reservableInventoryItems),
@@ -661,25 +760,8 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 id: paymentSessions![0].id,
             })
 
-            const orderIds = transform({ createdOrders }, ({ createdOrders }) => {
-                return createdOrders.map((order) => order.id)
-            })
-
-            // A provider that captures on authorization leaves the payment
-            // captured here; one captured later is split from the
-            // `payment.captured` subscriber.
-            const splitPaymentInput = transform({ payment, cart: cartData.data }, ({ cart }) => {
-                return { cart_id: cart.id }
-            })
-
-            splitCapturedCartPaymentWorkflow.runAsStep({
-                input: splitPaymentInput,
-            })
-
-            refreshOrderCommissionLinesWorkflow.runAsStep({
-                input: {
-                    order_ids: orderIds
-                }
+            const hasCapture = transform({ payment }, ({ payment }) => {
+                return !!(payment as { captures?: unknown[] } | undefined)?.captures?.length
             })
 
             createHook("orderGroupCreated", {
@@ -687,7 +769,34 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 cart_id: cartData.data.id,
             })
 
-            return createdOrderGroup
+            return transform(
+                { createdOrderGroup, hasCapture },
+                ({ createdOrderGroup, hasCapture }) => ({
+                    order_group: createdOrderGroup,
+                    has_capture: hasCapture,
+                })
+            )
+        })
+
+        // A provider that captures on authorization leaves the payment
+        // captured here; one captured later is split from the
+        // `payment.captured` subscriber. The split is a stored workflow with
+        // its own lock and checkpoints, so it only runs when there is a
+        // capture to split. Kept outside the block above: `when` does not nest.
+        const shouldSplitPayment = transform({ completion }, ({ completion }) => {
+            return !!completion?.has_capture
+        })
+
+        when("split-captured-cart-payment", { shouldSplitPayment }, ({ shouldSplitPayment }) => {
+            return shouldSplitPayment
+        }).then(() => {
+            const splitPaymentInput = transform({ input }, ({ input }) => {
+                return { cart_id: input.cart_id }
+            })
+
+            splitCapturedCartPaymentWorkflow.runAsStep({
+                input: splitPaymentInput,
+            })
         })
 
         releaseLockStep({
@@ -696,9 +805,9 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
         })
 
         const result = transform(
-            { createdOrderGroup, existingOrderGroupId },
-            ({ createdOrderGroup, existingOrderGroupId }) => {
-                return { order_group_id: createdOrderGroup?.id ?? existingOrderGroupId }
+            { completion, existingOrderGroupId },
+            ({ completion, existingOrderGroupId }) => {
+                return { order_group_id: completion?.order_group?.id ?? existingOrderGroupId }
             }
         )
 

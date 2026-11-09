@@ -14,6 +14,10 @@ export const StoreGetProductParams = createSelectParams().merge(
   z.object({
     region_id: z.string().optional(),
     currency_code: z.string().optional(),
+    country_code: z.string().optional(),
+    province: z.string().optional(),
+    cart_id: z.string().optional(),
+    sales_channel_id: z.union([z.string(), z.array(z.string())]).optional(),
   }),
 )
 
@@ -29,6 +33,10 @@ const StoreGetProductsParamsFields = z.object({
   is_giftcard: booleanString().optional(),
   region_id: z.string().optional(),
   currency_code: z.string().optional(),
+  country_code: z.string().optional(),
+  province: z.string().optional(),
+  cart_id: z.string().optional(),
+  sales_channel_id: z.union([z.string(), z.array(z.string())]).optional(),
   created_at: createOperatorMap().optional(),
   updated_at: createOperatorMap().optional(),
   attributes: z

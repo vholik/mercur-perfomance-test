@@ -14,6 +14,7 @@ export const waitForIndexedProducts = async (
     id: string
     status?: string
     title?: string
+    sales_channel_id?: string
     restricted: boolean
   }[]
 ) => {
@@ -29,6 +30,9 @@ export const waitForIndexedProducts = async (
             id: entry.id,
             ...(entry.status ? { status: entry.status } : {}),
             ...(entry.title ? { title: entry.title } : {}),
+            ...(entry.sales_channel_id
+              ? { sales_channels: { id: entry.sales_channel_id } }
+              : {}),
             product_seller: {
               id: entry.restricted ? { $ne: null } : { $eq: null },
             },

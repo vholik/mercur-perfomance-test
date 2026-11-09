@@ -157,6 +157,20 @@ const countIndexedProducts = async (
   return count
 }
 
+// Index-shaped filters (see `toIndexFilters`); the store middlewares ask the
+// same question before deciding how to apply the sales-channel filter.
+export const canUseProductIndex = (
+  scope: MedusaContainer,
+  indexFilters: Record<string, unknown>,
+  pagination?: Pagination
+): boolean =>
+  needsIndex(indexFilters) &&
+  isIndexEngineEnabled(scope) &&
+  isIndexable(indexFilters, INDEXED_PRODUCT) &&
+  isOrderIndexable(pagination?.order, INDEXED_PRODUCT)
+
+export const toProductIndexFilters = toIndexFilters
+
 export const listProducts = async <T = Record<string, unknown>>(
   scope: MedusaContainer,
   {
@@ -174,13 +188,7 @@ export const listProducts = async <T = Record<string, unknown>>(
 
   const indexFilters = withClause(toIndexFilters(filters), visibility?.index)
 
-  if (
-    !withDeleted &&
-    needsIndex(indexFilters) &&
-    isIndexEngineEnabled(scope) &&
-    isIndexable(indexFilters, INDEXED_PRODUCT) &&
-    isOrderIndexable(pagination?.order, INDEXED_PRODUCT)
-  ) {
+  if (!withDeleted && canUseProductIndex(scope, indexFilters, pagination)) {
     // One event clears the cache and starts the async index sync, so a request
     // in between re-caches pre-write index state; the TTL bounds that.
     const indexTtl = Math.min(

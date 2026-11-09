@@ -14,6 +14,7 @@ import {
   OfferInventoryShape,
   prepareOfferInventoryInput,
   requiredOfferFieldsForInventoryConfirmation,
+  resolveSalesChannelLocationIds,
 } from "../../offer/utils"
 import { resolveOrderableSellerIds } from "../../seller/utils"
 
@@ -23,28 +24,62 @@ type OfferDemandLine = {
   offer_id: string
 }
 
+type CartOfferLine = OfferDemandLine & { variant_id?: string | null }
+
 const resolveCartOfferLines = async (
   container: MedusaContainer,
   cartId: string,
-): Promise<OfferDemandLine[]> => {
+): Promise<CartOfferLine[]> => {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "cart",
-    fields: ["items.id", "items.quantity", "items.offer.id"],
+    fields: ["items.id", "items.quantity", "items.variant_id", "items.offer.id"],
     filters: { id: cartId },
   })
 
   const items = (data[0]?.items ?? []) as Array<{
     id: string
     quantity: BigNumberInput
+    variant_id?: string | null
     offer?: { id?: string } | null
   } | null>
 
   return items.flatMap((item) =>
     item?.offer?.id
-      ? [{ id: item.id, quantity: item.quantity, offer_id: item.offer.id }]
+      ? [
+          {
+            id: item.id,
+            quantity: item.quantity,
+            variant_id: item.variant_id,
+            offer_id: item.offer.id,
+          },
+        ]
       : [],
   )
+}
+
+type InventoryOffer = OfferInventoryShape & { seller_id?: string | null }
+
+const offerFieldsForAddToCart = [
+  ...requiredOfferFieldsForInventoryConfirmation,
+  "seller_id",
+]
+
+const readOffers = async (
+  container: MedusaContainer,
+  offerIds: string[],
+  fields: string[] = requiredOfferFieldsForInventoryConfirmation,
+): Promise<InventoryOffer[]> => {
+  if (!offerIds.length) {
+    return []
+  }
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "offer",
+    fields,
+    filters: { id: offerIds },
+  })
+  return data as InventoryOffer[]
 }
 
 // Several lines can draw on one inventory item: the same offer added again
@@ -54,23 +89,19 @@ const resolveCartOfferLines = async (
 const hasCartOfferInventoryCoverage = async ({
   container,
   salesChannelId,
+  channelLocationIds,
   lines,
   checkedLineIds,
+  offers,
 }: {
   container: MedusaContainer
   salesChannelId?: string
+  channelLocationIds?: string[]
   lines: OfferDemandLine[]
   checkedLineIds: Set<string>
+  offers: InventoryOffer[]
 }): Promise<boolean> => {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const inventoryService = container.resolve(Modules.INVENTORY)
-
-  const offerIds = Array.from(new Set(lines.map((l) => l.offer_id)))
-  const { data: offers } = await query.graph({
-    entity: "offer",
-    fields: requiredOfferFieldsForInventoryConfirmation,
-    filters: { id: offerIds },
-  })
 
   const foundIds = new Set(offers.map((o: { id: string }) => o.id))
   const missing = lines.find(
@@ -86,6 +117,7 @@ const hasCartOfferInventoryCoverage = async ({
   const { items: entries } = prepareOfferInventoryInput({
     input: {
       sales_channel_id: salesChannelId,
+      channel_location_ids: channelLocationIds,
       items: lines
         .filter((l) => foundIds.has(l.offer_id))
         .map((l) => ({
@@ -145,25 +177,14 @@ const hasCartOfferInventoryCoverage = async ({
 // Medusa calculates prices per variant, so two offers on one variant would
 // both resolve to the cheaper offer's price. A variant is sold by one offer
 // per cart; switching offers means removing the line first.
-const validateOneOfferPerVariant = async (
-  container: MedusaContainer,
-  cartId: string,
+const validateOneOfferPerVariant = (
+  existing: CartOfferLine[],
   incoming: Array<{ variant_id?: string; offer_id: string }>,
-): Promise<void> => {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "cart",
-    fields: ["items.variant_id", "items.offer.id"],
-    filters: { id: cartId },
-  })
-
+): void => {
   const offerByVariant = new Map<string, string>()
-  for (const item of (data[0]?.items ?? []) as Array<{
-    variant_id?: string | null
-    offer?: { id?: string } | null
-  } | null>) {
-    if (item?.variant_id && item.offer?.id) {
-      offerByVariant.set(item.variant_id, item.offer.id)
+  for (const item of existing) {
+    if (item.variant_id) {
+      offerByVariant.set(item.variant_id, item.offer_id)
     }
   }
 
@@ -185,22 +206,20 @@ const validateOneOfferPerVariant = async (
 const validateOrderableSellers = async (
   container: MedusaContainer,
   offerIds: string[],
+  offers: InventoryOffer[],
 ): Promise<void> => {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: offers } = await query.graph({
-    entity: "offer",
-    fields: ["id", "seller_id"],
-    filters: { id: offerIds },
-  })
-  if (offers.length !== offerIds.length) {
+  const found = new Map(offers.map((offer) => [offer.id, offer]))
+  const missing = offerIds.find((id) => !found.has(id))
+  if (missing) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      `Offer ${offerIds.find((id) => !offers.some((offer) => offer.id === id))} was not found`,
+      `Offer ${missing} was not found`,
     )
   }
+  const incoming = offerIds.map((id) => found.get(id)!)
   const sellerIds = [
     ...new Set(
-      (offers as { seller_id?: string | null }[])
+      incoming
         .map((offer) => offer.seller_id)
         .filter((id): id is string => !!id),
     ),
@@ -208,7 +227,7 @@ const validateOrderableSellers = async (
   const orderable = new Set(
     sellerIds.length ? await resolveOrderableSellerIds(container, sellerIds) : [],
   )
-  const unavailable = (offers as { id: string; seller_id?: string | null }[]).find(
+  const unavailable = incoming.find(
     (offer) => !offer.seller_id || !orderable.has(offer.seller_id),
   )
   if (unavailable) {
@@ -219,6 +238,8 @@ const validateOrderableSellers = async (
   }
 }
 
+// The cart lines and the offers (incoming and already in the cart) are read
+// once each, in parallel, and feed the three checks below.
 addToCartWorkflow.hooks.validate(async ({ input, cart }, { container }) => {
   const incoming = (input.items ?? []).filter(
     (i): i is typeof i & { offer_id: string } =>
@@ -228,24 +249,38 @@ addToCartWorkflow.hooks.validate(async ({ input, cart }, { container }) => {
     return
   }
 
-  await validateOneOfferPerVariant(container, cart.id, incoming)
-  await validateOrderableSellers(
+  const incomingOfferIds = [...new Set(incoming.map((i) => i.offer_id))]
+  const [existingLines, channelLocationIds] = await promiseAll([
+    resolveCartOfferLines(container, cart.id),
+    resolveSalesChannelLocationIds(container, cart.sales_channel_id),
+  ])
+  const offers = await readOffers(
     container,
-    [...new Set(incoming.map((i) => i.offer_id))],
+    [
+      ...new Set([
+        ...incomingOfferIds,
+        ...existingLines.map((line) => line.offer_id),
+      ]),
+    ],
+    offerFieldsForAddToCart,
   )
+
+  validateOneOfferPerVariant(existingLines, incoming)
+  await validateOrderableSellers(container, incomingOfferIds, offers)
 
   const incomingLines = incoming.map((i, index) => ({
     id: `incoming_${index}`,
     quantity: i.quantity,
     offer_id: i.offer_id,
   }))
-  const existingLines = await resolveCartOfferLines(container, cart.id)
 
   const covered = await hasCartOfferInventoryCoverage({
     container,
     salesChannelId: cart.sales_channel_id ?? undefined,
+    channelLocationIds,
     lines: [...existingLines, ...incomingLines],
     checkedLineIds: new Set(incomingLines.map((l) => l.id)),
+    offers,
   })
 
   if (!covered) {
@@ -267,9 +302,11 @@ updateLineItemInCartWorkflow.hooks.validate(
       return
     }
 
-    const lines = (
-      await resolveCartOfferLines(container, cart.id)
-    ).map((l) =>
+    const [cartLines, channelLocationIds] = await promiseAll([
+      resolveCartOfferLines(container, cart.id),
+      resolveSalesChannelLocationIds(container, cart.sales_channel_id),
+    ])
+    const lines = cartLines.map((l) =>
       l.id === input.item_id ? { ...l, quantity: newQuantity } : l,
     )
     if (!lines.some((l) => l.id === input.item_id)) {
@@ -279,8 +316,13 @@ updateLineItemInCartWorkflow.hooks.validate(
     const covered = await hasCartOfferInventoryCoverage({
       container,
       salesChannelId: cart.sales_channel_id ?? undefined,
+      channelLocationIds,
       lines,
       checkedLineIds: new Set([input.item_id]),
+      offers: await readOffers(
+        container,
+        [...new Set(lines.map((l) => l.offer_id))],
+      ),
     })
 
     if (!covered) {

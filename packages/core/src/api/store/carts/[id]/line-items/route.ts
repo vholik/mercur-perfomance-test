@@ -4,7 +4,7 @@ import {
   MedusaError,
 } from "@medusajs/framework/utils"
 import { addToCartWorkflow } from "@medusajs/medusa/core-flows"
-import { defaultStoreCartFields, refetchCart } from "../../helpers"
+import { refetchCart } from "../../helpers"
 import { StoreAddCartLineItemType } from "./validators"
 
 export const POST = async (
@@ -45,6 +45,6 @@ export const POST = async (
     },
   })
 
-  const cart = await refetchCart(cart_id, req.scope, defaultStoreCartFields)
+  const cart = await refetchCart(cart_id, req.scope, req.queryConfig.fields)
   res.status(200).json({ cart })
 }
