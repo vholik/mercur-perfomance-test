@@ -1,4 +1,4 @@
-import { CartWorkflowEvents, MedusaError } from "@medusajs/framework/utils"
+import { CartWorkflowEvents, MedusaError, PromotionActions } from "@medusajs/framework/utils"
 import {
     createHook,
     createWorkflow,
@@ -7,9 +7,20 @@ import {
     WorkflowData,
     WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { acquireLockStep, addShippingMethodToCartStep, AddShippingMethodToCartWorkflowInput, emitEventStep, listShippingOptionsForCartWithPricingWorkflow, refreshCartItemsWorkflow, releaseLockStep, removeShippingMethodFromCartStep, useQueryGraphStep, useRemoteQueryStep, validateAndReturnShippingMethodsDataStep, validateCartShippingOptionsPriceStep, validateCartShippingOptionsStep, validateCartStep } from "@medusajs/medusa/core-flows"
-import { AdditionalData } from "@medusajs/types"
+import { acquireLockStep, addShippingMethodToCartStep, AddShippingMethodToCartWorkflowInput, emitEventStep, refreshPaymentCollectionForCartWorkflow, releaseLockStep, removeShippingMethodFromCartStep, updateCartPromotionsWorkflow, upsertTaxLinesWorkflow, useQueryGraphStep, useRemoteQueryStep, validateAndReturnShippingMethodsDataStep, validateCartShippingOptionsPriceStep, validateCartShippingOptionsStep, validateCartStep } from "@medusajs/medusa/core-flows"
+import { AdditionalData, ShippingOptionDTO } from "@medusajs/types"
 import { cartFieldsForRefreshSteps } from "../utils"
+import { listSellerShippingOptionsForCartWorkflow } from "./list-seller-shipping-options-for-cart"
+
+type PricedSellerShippingOption = ShippingOptionDTO & {
+    calculated_price?: {
+        calculated_amount: number
+        is_calculated_price_tax_inclusive?: boolean
+    } | null
+    service_zone?: {
+        fulfillment_set?: { location?: Record<string, unknown> | null } | null
+    } | null
+}
 
 export const addSellerShippingMethodToCartWorkflow = createWorkflow(
     {
@@ -47,7 +58,10 @@ export const addSellerShippingMethodToCartWorkflow = createWorkflow(
             return (data.input.options ?? []).map((i) => i.id)
         })
 
-        const [allShippingOptions, shippingOptions] = parallelize(
+        // Medusa prices options from the cart's sales channel, which in a
+        // marketplace spans every seller's warehouse. The seller-scoped listing
+        // starts from the sellers in the cart instead.
+        const [allShippingOptions, sellerShippingOptions] = parallelize(
             useQueryGraphStep({
                 entity: "shipping_option",
                 fields: ['id', 'seller.id'],
@@ -55,14 +69,20 @@ export const addSellerShippingMethodToCartWorkflow = createWorkflow(
             }).config({
                 name: "shipping-options-with-sellers-query",
             }),
-            listShippingOptionsForCartWithPricingWorkflow.runAsStep({
+            listSellerShippingOptionsForCartWorkflow.runAsStep({
                 input: {
-                    options: input.options,
+                    option_ids: optionIds,
                     cart_id: cart.id,
                     is_return: false,
                     additional_data: input.additional_data,
                 },
             })
+        )
+
+        const shippingOptions = transform(
+            { sellerShippingOptions },
+            ({ sellerShippingOptions }) =>
+                Object.values(sellerShippingOptions).flat() as PricedSellerShippingOption[]
         )
 
         validateCartShippingOptionsStep({
@@ -82,12 +102,12 @@ export const addSellerShippingMethodToCartWorkflow = createWorkflow(
 
                     return {
                         id: inputOption.id,
-                        provider_id: shippingOption?.provider_id,
+                        provider_id: shippingOption?.provider_id as string,
                         option_data: shippingOption?.data ?? {},
                         method_data: inputOption.data ?? {},
                         context: {
                             ...cart,
-                            from_location: shippingOption?.stock_location ?? {},
+                            from_location: shippingOption?.service_zone?.fulfillment_set?.location ?? {},
                         },
                     }
                 })
@@ -164,12 +184,44 @@ export const addSellerShippingMethodToCartWorkflow = createWorkflow(
             })
         )
 
-        refreshCartItemsWorkflow.runAsStep({
+        // The methods were priced a moment ago, so this skips Medusa's
+        // refreshCartItemsWorkflow, which would price every method on the cart
+        // a second time, and runs only the refresh steps the new methods need.
+        const { data: refetchedCart } = useQueryGraphStep({
+            entity: "cart",
+            fields: cartFieldsForRefreshSteps,
+            filters: { id: cart.id },
+            options: { isList: false },
+        }).config({ name: "refetch-cart" })
+
+        upsertTaxLinesWorkflow.runAsStep({
+            input: transform(
+                { refetchedCart, createdShippingMethods },
+                ({ refetchedCart, createdShippingMethods }) => ({
+                    cart: refetchedCart,
+                    items: [],
+                    shipping_methods: createdShippingMethods,
+                })
+            ),
+        })
+
+        const cartPromoCodes = transform({ refetchedCart }, ({ refetchedCart }) =>
+            (refetchedCart.promotions ?? [])
+                .map((promotion) => promotion?.code)
+                .filter((code): code is string => Boolean(code))
+        )
+
+        updateCartPromotionsWorkflow.runAsStep({
             input: {
                 cart_id: cart.id,
-                shipping_methods: createdShippingMethods,
-                additional_data: input.additional_data,
+                promo_codes: cartPromoCodes,
+                action: PromotionActions.REPLACE,
+                force_refresh_payment_collection: false,
             },
+        })
+
+        refreshPaymentCollectionForCartWorkflow.runAsStep({
+            input: { cart: refetchedCart },
         })
 
         parallelize(

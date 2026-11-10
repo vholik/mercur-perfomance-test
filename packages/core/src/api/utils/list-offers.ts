@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, isPresent } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ProductStatus } from "@mercurjs/types"
 
@@ -98,7 +98,15 @@ export const listOffers = async <T = Record<string, unknown>>(
     visibility?.index
   )
 
+  // A product page asks for one product's offers. That is a btree lookup on
+  // offer.product_id in the graph, while the index answers it with a DISTINCT
+  // over cat_offer joined through the seller and product pivots, which costs
+  // hundreds of milliseconds on a 500k-offer catalog. The index stays for
+  // unscoped listings, where its filters and pagination earn their keep.
+  const keyedByProduct = isPresent(filters.product_id)
+
   if (
+    !keyedByProduct &&
     isIndexEngineEnabled(scope) &&
     isIndexable(indexFilters, INDEXED_OFFER) &&
     isOrderIndexable(pagination?.order, INDEXED_OFFER)

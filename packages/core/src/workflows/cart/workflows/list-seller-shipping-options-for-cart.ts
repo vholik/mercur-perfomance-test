@@ -19,6 +19,7 @@ export type ListSellerShippingOptionsForCartWorkflowInput = {
     cart_id: string
     is_return?: boolean
     enabled_in_store?: boolean
+    option_ids?: string[]
     fields?: string[]
 } & AdditionalData
 
@@ -174,6 +175,7 @@ export const listSellerShippingOptionsForCartWorkflow = createWorkflow(
                     },
 
                     filters: {
+                        ...(input.option_ids?.length ? { id: input.option_ids } : {}),
                         fulfillment_set_id: fulfillmentSetIds,
                         address: {
                             country_code: cart.shipping_address?.country_code,
