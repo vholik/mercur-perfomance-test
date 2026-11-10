@@ -12,13 +12,14 @@ import { Counter } from "k6/metrics"
  * - shipping options come back grouped by seller; all sellers' methods are set
  *   in one call, and email/address are set at cart creation
  * - completing a cart returns an order group split into one order per seller
- * - product pages are spread over the whole catalog instead of always page one
  *
  *   k6 run perf/k6/mercur-marketplace.js                       # smoke fixtures, full 420 VUs
  *   DATASET=large SCALE=0.05 k6 run perf/k6/mercur-marketplace.js
  *
  * Env: DATASET (fixtures file), SCALE (VU multiplier), RAMP / STEADY (stage
- * durations), ENDPOINT (overrides the fixtures endpoint), CLOUD=1 (k6 cloud).
+ * durations), ENDPOINT (overrides the fixtures endpoint), CLOUD=1 (k6 cloud),
+ * RANDOM_PAGE=1 (spread product pages over the whole catalog; Medusa's script
+ * and the default here always read page one).
  */
 
 const DATASET = __ENV.DATASET || "smoke"
@@ -28,6 +29,7 @@ const endpoint = __ENV.ENDPOINT || fixtures.endpoint
 const regions = fixtures.regions
 const productCount = fixtures.counts.products
 
+const RANDOM_PAGE = __ENV.RANDOM_PAGE === "1"
 const SCALE = Number(__ENV.SCALE || 1)
 const RAMP = __ENV.RAMP || "2m"
 const STEADY = __ENV.STEADY || "6m"
@@ -126,7 +128,7 @@ const productFields = "*variants.calculated_price,+variants.offer_id"
 
 function listProducts(region) {
   const maxOffset = Math.max(0, productCount - pageSize)
-  const offset = Math.floor(Math.random() * (maxOffset + 1))
+  const offset = RANDOM_PAGE ? Math.floor(Math.random() * (maxOffset + 1)) : 0
   const res = request(
     "GET",
     `${endpoint}/store/products?region_id=${region.id}&fields=${productFields}&limit=${pageSize}&offset=${offset}`,

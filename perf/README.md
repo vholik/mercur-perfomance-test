@@ -54,11 +54,12 @@ the region IDs, the promo code and the final counts. The IDs survive
 `pg_dump`/`pg_restore`, so the k6 scripts read them from this file.
 
 The seed creates everything through Mercur's workflows, so the data has the
-same shape a real marketplace would. That makes it slow: time the `smoke` and
-`large` runs before starting `heavy`. Measured on a laptop: `smoke` (200
-products, 2.1k offers) took 12 seconds, about 70 products/s and 270 offers/s.
-At that rate `large` takes roughly 45 minutes and `heavy` 8 hours or more.
-Redis is not part of the dump.
+same shape a real marketplace would. That makes it slow, and the offer step
+slows down as the price and link tables grow. Measured on a laptop: `smoke`
+(200 products, 2.1k offers) took 12 seconds; `large` took 12 hours, of which
+products were 8 minutes (about 106/s) and offers the rest (about 12/s). At
+that rate `heavy` would take days, so it needs a bulk-insert path for offers
+before it is worth starting. Redis is not part of the dump.
 
 ## Moving the data to Medusa Cloud
 
@@ -118,6 +119,11 @@ Follow Medusa Cloud's guidance:
    be pre-scaled, so arrange that with Medusa before any test that does it.
 4. **Publish only full runs.** Use 420 VUs on Grafana Cloud k6 (2m ramp up,
    6m steady, 2m ramp down), from the load zone closest to the deployment.
+
+The product listing reads page one, as Medusa's script does. `RANDOM_PAGE=1`
+spreads the listing over the whole catalog instead, which defeats the list
+cache and measures the cold cost of the Index query; keep it out of runs that
+are compared with Medusa's numbers.
 
 ## Server-side cache knobs
 

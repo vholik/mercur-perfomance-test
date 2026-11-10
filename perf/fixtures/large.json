@@ -1,0 +1,54 @@
+{
+  "dataset": "large",
+  "endpoint": "https://mercur.medusajs.app",
+  "publishable_key": "pk_82e4405d6a9392d2e27d7a99cf6ea5ada810ccb6a214254940c9286efc6e6b47",
+  "regions": [
+    {
+      "id": "reg_01M712931YB0B00AVH5S0MQP0B",
+      "name": "Europe",
+      "currency_code": "eur",
+      "countries": [
+        "de",
+        "fr",
+        "nl",
+        "es",
+        "it"
+      ]
+    },
+    {
+      "id": "reg_01M712931YQHBY0CZY1P45EAAC",
+      "name": "Nordics",
+      "currency_code": "eur",
+      "countries": [
+        "dk",
+        "se",
+        "fi"
+      ]
+    },
+    {
+      "id": "reg_01M712931YR5G3DJZCN4AFJGE4",
+      "name": "United States",
+      "currency_code": "usd",
+      "countries": [
+        "us"
+      ]
+    },
+    {
+      "id": "reg_01M712931YMMDJKXSSENNJEPVQ",
+      "name": "Canada",
+      "currency_code": "usd",
+      "countries": [
+        "ca"
+      ]
+    }
+  ],
+  "payment_provider_id": "pp_system_default",
+  "promo_code": "10OFF",
+  "counts": {
+    "sellers": 500,
+    "products": 50000,
+    "variants": 149771,
+    "offers": 508163
+  },
+  "seeded_at": "2026-11-10T09:11:32.201Z"
+}
