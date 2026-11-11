@@ -13,6 +13,7 @@ import {
     Modules,
     OrderStatus,
     OrderWorkflowEvents,
+    PaymentEvents,
 } from "@medusajs/framework/utils"
 import {
     createHook,
@@ -35,7 +36,7 @@ import {
     validateCartItemsStep,
     validateCartPaymentsStep,
 } from "@medusajs/medusa/core-flows"
-import { CommissionCalculationContext, CreateOrderGroupDTO, MercurModules, SellerDTO } from "@mercurjs/types"
+import { CreateOrderGroupDTO, MercurModules, SellerDTO } from "@mercurjs/types"
 import { createOrderGroupStep } from "../../order-group"
 import { OrderGroupWorkflowEvents } from "../../events"
 import {
@@ -55,8 +56,6 @@ import {
 } from "../utils"
 import { registerUsageStep } from "../../promotion"
 import { createLinksStep } from "../../common/steps"
-import { splitCapturedCartPaymentWorkflow } from "../../payment/workflows/split-order-payments"
-import { refreshOrderCommissionLinesWorkflow } from "../../commission/workflows/refresh-order-commission-lines"
 import {
     prepareOfferInventoryInput,
     requiredOfferFieldsForInventoryConfirmation,
@@ -662,79 +661,12 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 return createdOrders.map((order) => ({ id: order.id }))
             })
 
-            // Order lines are created from the cart lines of their seller in
-            // order, so each order line maps back to the cart line (and its
-            // totals, product and offer) by position; the orders need not be
-            // read again for the commission calculation.
-            const commissionContexts = transform(
-                { cart: cartData.data, createdOrders, sellerOrdersMap, shippingOptionsData: shippingOptionsData.data },
-                ({ cart, createdOrders, sellerOrdersMap, shippingOptionsData }) => {
-                    const sellerByOrderId = new Map(
-                        Object.entries(sellerOrdersMap).map(([sellerId, orderId]) => [orderId, sellerId])
-                    )
-                    const sellerByOptionId = new Map(
-                        shippingOptionsData.map((so) => [so.id, so.seller?.id])
-                    )
-                    const toContext = (order: (typeof createdOrders)[number]): CommissionCalculationContext => {
-                        const sellerId = sellerByOrderId.get(order.id)
-                        const cartItems = (cart.items ?? []).filter(
-                            (item: any) => item.offer?.seller_id === sellerId
-                        )
-                        const cartShippingMethods = (cart.shipping_methods ?? []).filter(
-                            (sm) => sellerByOptionId.get(sm.shipping_option_id ?? "") === sellerId
-                        )
-                        return {
-                            currency_code: order.currency_code,
-                            order_id: order.id,
-                            seller_id: sellerId,
-                            items: (order.items ?? []).map((orderItem, index) => {
-                                const item = cartItems[index] as any
-                                const product = item?.variant?.product
-                                return {
-                                    id: orderItem.id,
-                                    subtotal: item?.subtotal,
-                                    tax_total: item?.tax_total,
-                                    total: item?.total,
-                                    product: product
-                                        ? {
-                                            id: product.id,
-                                            collection_id: product.collection?.id ?? product.collection_id,
-                                            categories: product.categories,
-                                            tags: product.tags,
-                                            type_id: product.type?.id ?? product.type_id,
-                                            seller: sellerId ? { id: sellerId } : undefined,
-                                            attribute_value_ids: (product.attribute_values ?? [])
-                                                .map((value: { id: string }) => value.id),
-                                        }
-                                        : undefined,
-                                }
-                            }),
-                            shipping_methods: (order.shipping_methods ?? []).map((method, index) => {
-                                const sm = cartShippingMethods[index]
-                                return {
-                                    id: method.id,
-                                    subtotal: sm?.subtotal,
-                                    tax_total: sm?.tax_total,
-                                }
-                            }),
-                        }
-                    }
-                    return createdOrders.map(toContext)
-                }
-            )
-
             const orderIds = transform({ createdOrders }, ({ createdOrders }) => {
                 return createdOrders.map((order) => order.id)
             })
 
             parallelize(
                 createLinksStep(linksToCreate),
-                refreshOrderCommissionLinesWorkflow.runAsStep({
-                    input: {
-                        order_ids: orderIds,
-                        contexts: commissionContexts,
-                    }
-                }),
                 updateCartsStep([updateCompletedAt]),
                 reserveInventoryStep(reservableInventoryItems),
                 registerUsageStep(promotionUsage),
@@ -760,8 +692,9 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
                 id: paymentSessions![0].id,
             })
 
-            const hasCapture = transform({ payment }, ({ payment }) => {
-                return !!(payment as { captures?: unknown[] } | undefined)?.captures?.length
+            const capturedPaymentId = transform({ payment }, ({ payment }) => {
+                const captured = payment as { id: string; captures?: unknown[] } | undefined
+                return captured?.captures?.length ? captured.id : undefined
             })
 
             createHook("orderGroupCreated", {
@@ -770,33 +703,29 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
             })
 
             return transform(
-                { createdOrderGroup, hasCapture },
-                ({ createdOrderGroup, hasCapture }) => ({
+                { createdOrderGroup, capturedPaymentId },
+                ({ createdOrderGroup, capturedPaymentId }) => ({
                     order_group: createdOrderGroup,
-                    has_capture: hasCapture,
+                    captured_payment_id: capturedPaymentId,
                 })
             )
         })
 
         // A provider that captures on authorization leaves the payment
-        // captured here; one captured later is split from the
-        // `payment.captured` subscriber. The split is a stored workflow with
-        // its own lock and checkpoints, so it only runs when there is a
-        // capture to split. Kept outside the block above: `when` does not nest.
-        const shouldSplitPayment = transform({ completion }, ({ completion }) => {
-            return !!completion?.has_capture
+        // captured here, and the payment module emits nothing for it. The
+        // event is what a later capture would emit, so the same subscriber
+        // splits the payment between the orders, off the checkout request.
+        const capturedPaymentId = transform({ completion }, ({ completion }) => {
+            return completion?.captured_payment_id
         })
 
-        when("split-captured-cart-payment", { shouldSplitPayment }, ({ shouldSplitPayment }) => {
-            return shouldSplitPayment
+        when("split-captured-cart-payment", { capturedPaymentId }, ({ capturedPaymentId }) => {
+            return !!capturedPaymentId
         }).then(() => {
-            const splitPaymentInput = transform({ input }, ({ input }) => {
-                return { cart_id: input.cart_id }
-            })
-
-            splitCapturedCartPaymentWorkflow.runAsStep({
-                input: splitPaymentInput,
-            })
+            emitEventStep({
+                eventName: PaymentEvents.CAPTURED,
+                data: { id: capturedPaymentId },
+            }).config({ name: "payment-captured-event" })
         })
 
         releaseLockStep({

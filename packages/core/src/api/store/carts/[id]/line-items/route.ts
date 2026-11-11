@@ -3,7 +3,7 @@ import {
   ContainerRegistrationKeys,
   MedusaError,
 } from "@medusajs/framework/utils"
-import { addToCartWorkflow } from "@medusajs/medusa/core-flows"
+import { addOfferToCartWorkflow } from "../../../../../workflows/cart"
 import { refetchCart } from "../../helpers"
 import { StoreAddCartLineItemType } from "./validators"
 
@@ -29,7 +29,7 @@ export const POST = async (
     )
   }
 
-  await addToCartWorkflow(req.scope).run({
+  await addOfferToCartWorkflow(req.scope).run({
     input: {
       cart_id,
       items: [

@@ -17,6 +17,7 @@ import {
   resolveSalesChannelLocationIds,
 } from "../../offer/utils"
 import { resolveOrderableSellerIds } from "../../seller/utils"
+import { addOfferToCartWorkflow } from "../workflows/add-offer-to-cart"
 
 type OfferDemandLine = {
   id: string
@@ -240,7 +241,16 @@ const validateOrderableSellers = async (
 
 // The cart lines and the offers (incoming and already in the cart) are read
 // once each, in parallel, and feed the three checks below.
-addToCartWorkflow.hooks.validate(async ({ input, cart }, { container }) => {
+const validateAddToCart = async (
+  {
+    input,
+    cart,
+  }: {
+    input: { items?: Array<{ offer_id?: string; quantity: BigNumberInput }> }
+    cart: { id: string; sales_channel_id?: string | null }
+  },
+  container: MedusaContainer,
+) => {
   const incoming = (input.items ?? []).filter(
     (i): i is typeof i & { offer_id: string } =>
       typeof i.offer_id === "string" && i.offer_id.length > 0,
@@ -290,7 +300,15 @@ addToCartWorkflow.hooks.validate(async ({ input, cart }, { container }) => {
       MedusaError.Codes.INSUFFICIENT_INVENTORY,
     )
   }
-})
+}
+
+addToCartWorkflow.hooks.validate(async ({ input, cart }, { container }) =>
+  validateAddToCart({ input, cart }, container),
+)
+
+addOfferToCartWorkflow.hooks.validate(async ({ input, cart }, { container }) =>
+  validateAddToCart({ input, cart }, container),
+)
 
 updateLineItemInCartWorkflow.hooks.validate(
   async ({ input, cart }, { container }) => {

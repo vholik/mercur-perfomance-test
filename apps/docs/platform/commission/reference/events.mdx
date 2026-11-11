@@ -19,7 +19,7 @@ The `order-commission-refresh-handler` subscriber, in `packages/core/src/subscri
 
 The subscriber reads `order_id` and falls back to `id`. It does nothing when the payload has neither. The events come from Medusa as `OrderEditWorkflowEvents.CONFIRMED`, `OrderWorkflowEvents.RETURN_RECEIVED`, `OrderWorkflowEvents.CLAIM_CREATED`, and `OrderWorkflowEvents.EXCHANGE_CREATED`.
 
-Checkout doesn’t go through an event. `completeCartWithSplitOrdersWorkflow` runs the refresh as a nested step for every seller order it creates.
+Checkout goes through `order.placed`. `completeCartWithSplitOrdersWorkflow` emits it once with every seller order it created, and the `order-placed-commission-handler` subscriber refreshes those orders together, after the shopper's request has returned.
 
 ## Run your own logic after a recompute
 

@@ -4,6 +4,7 @@ import {
     createWorkflow,
     parallelize,
     transform,
+    when,
     WorkflowData,
     WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
@@ -211,13 +212,19 @@ export const addSellerShippingMethodToCartWorkflow = createWorkflow(
                 .filter((code): code is string => Boolean(code))
         )
 
-        updateCartPromotionsWorkflow.runAsStep({
-            input: {
-                cart_id: cart.id,
-                promo_codes: cartPromoCodes,
-                action: PromotionActions.REPLACE,
-                force_refresh_payment_collection: false,
-            },
+        // Medusa re-applies promotions on every refresh; a cart without codes
+        // has nothing to re-apply.
+        when("refresh-cart-promotions", { cartPromoCodes }, ({ cartPromoCodes }) => {
+            return cartPromoCodes.length > 0
+        }).then(() => {
+            updateCartPromotionsWorkflow.runAsStep({
+                input: {
+                    cart_id: cart.id,
+                    promo_codes: cartPromoCodes,
+                    action: PromotionActions.REPLACE,
+                    force_refresh_payment_collection: false,
+                },
+            })
         })
 
         refreshPaymentCollectionForCartWorkflow.runAsStep({

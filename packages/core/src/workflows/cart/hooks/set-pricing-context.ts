@@ -11,6 +11,7 @@ import {
   updateLineItemInCartWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { MercurModules } from "@mercurjs/types"
+import { addOfferToCartWorkflow } from "../workflows/add-offer-to-cart"
 import {
   CartShippingRows,
   cartShippingRowFields,
@@ -106,12 +107,16 @@ const linkUnlinkedLines = async (
   )
 }
 
-addToCartWorkflow.hooks.setPricingContext(async ({ cart, items }) => {
+const addToCartPricingContext = async ({
+  cart,
+  items,
+}: {
+  cart?: { items?: Array<{ offer?: { id?: string } | null }> | null } | null
+  items?: OfferCarrier[]
+}) => {
   const ids = new Set<string>()
   for (const id of collectFromInputItems(items)) ids.add(id)
-  for (const item of (cart?.items ?? []) as Array<{
-    offer?: { id?: string } | null
-  }>) {
+  for (const item of cart?.items ?? []) {
     if (item.offer?.id) ids.add(item.offer.id)
   }
   if (!ids.size) {
@@ -121,7 +126,15 @@ addToCartWorkflow.hooks.setPricingContext(async ({ cart, items }) => {
     )
   }
   return new StepResponse({ offer_id: Array.from(ids) })
-})
+}
+
+addToCartWorkflow.hooks.setPricingContext(async ({ cart, items }) =>
+  addToCartPricingContext({ cart, items }),
+)
+
+addOfferToCartWorkflow.hooks.setPricingContext(async ({ cart, items }) =>
+  addToCartPricingContext({ cart, items }),
+)
 
 updateLineItemInCartWorkflow.hooks.setPricingContext(
   async ({ cart, item }, { container }) => {
