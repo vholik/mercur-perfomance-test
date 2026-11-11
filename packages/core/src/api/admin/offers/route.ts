@@ -28,6 +28,7 @@ export const GET = async (
   // offer; a page is held for a minute, and any offer write clears it.
   const { data: offers, metadata } = filters.group_by_seller
     ? await useCache(list, {
+        enable: true,
         key: ["mercur:admin-offers", filters, req.queryConfig.fields, req.queryConfig.pagination, withDeleted],
         tags: ["Offer:list:*"],
         ttl: 60,
