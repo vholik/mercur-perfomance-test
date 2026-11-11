@@ -1,6 +1,6 @@
 import { check, group, sleep } from "k6"
 import http from "k6/http"
-import { Counter } from "k6/metrics"
+import { Counter, Trend } from "k6/metrics"
 
 /**
  * Marketplace version of Medusa's mid-sized DTC benchmark:
@@ -65,6 +65,16 @@ const pageSize = 20
 
 const ordersPlaced = new Counter("orders_placed")
 const sellersPerOrder = new Counter("order_seller_splits")
+// Time the request spent in the Medusa pod, as reported by Cloud's edge. The
+// gap to http_req_duration is the network and the edge itself.
+const serverTime = new Trend("server_time", true)
+
+function recordServerTime(res, name) {
+  const upstream = res.headers["X-Envoy-Upstream-Service-Time"]
+  if (upstream !== undefined) {
+    serverTime.add(Number(upstream), { name })
+  }
+}
 
 const params = {
   headers: {
@@ -144,10 +154,12 @@ const think = (min = 2, spread = 3) => sleep(min + Math.random() * spread)
 const randomItem = (items) => items[Math.floor(Math.random() * items.length)]
 
 function request(method, url, body, name) {
-  return http.request(method, url, body ? JSON.stringify(body) : null, {
+  const res = http.request(method, url, body ? JSON.stringify(body) : null, {
     ...params,
     tags: { name: name || url },
   })
+  recordServerTime(res, name || url)
+  return res
 }
 
 function json(res, key) {
@@ -481,6 +493,7 @@ function panelRequest(session, method, path, body, name) {
     ...session,
     tags: { name: `${endpoint}${name || path}` },
   })
+  recordServerTime(res, `${endpoint}${name || path}`)
   check(res, { [`${name || path} ok`]: (r) => r.status === 200 })
   return res
 }
