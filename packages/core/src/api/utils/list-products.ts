@@ -128,27 +128,43 @@ const toQueryOptions = (
 })
 
 // query.index only reports the planner estimate, which undercounts JSONB
-// filters badly. This is the ids-only call query.index makes, without paging.
+// filters badly. The index has no exact count either: the ids-only call below
+// returns every matching id, the whole catalog for an unfiltered list. When
+// only the visibility clause needs the index, the graph counts the same rows
+// with one COUNT(*) instead.
 const countIndexedProducts = async (
   scope: MedusaContainer,
   filters: Record<string, unknown>,
+  indexFilters: Record<string, unknown>,
+  visibility: ProductVisibility | undefined,
   cache: ListProductsCache | undefined,
   ttl: number
 ): Promise<number> => {
   const { count } = await useCache(
     async () => {
+      if (visibility && !needsIndex(toIndexFilters(filters))) {
+        const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+        const { metadata } = await query.graph({
+          entity: "product",
+          fields: ["id"],
+          filters: withClause(filters, await visibility.graph()),
+          pagination: { skip: 0, take: 1 },
+        })
+        return { count: metadata?.count ?? 0 }
+      }
+
       const { data } = await scope
         .resolve<IIndexService>(Modules.INDEX)
         .query({
           fields: ["product.id"],
-          filters: { product: filters } as IndexQueryConfig<"product">["filters"],
+          filters: { product: indexFilters } as IndexQueryConfig<"product">["filters"],
           idsOnly: true,
         })
       return { count: data.length }
     },
     {
       enable: !!cache,
-      key: ["mercur:product-count", filters],
+      key: ["mercur:product-count", indexFilters],
       tags: listCacheTags(cache),
       ttl,
       container: scope,
@@ -207,7 +223,7 @@ export const listProducts = async <T = Record<string, unknown>>(
         toQueryOptions(cache, locale, indexTtl)
       ),
       exactCount
-        ? countIndexedProducts(scope, indexFilters, cache, indexTtl)
+        ? countIndexedProducts(scope, filters, indexFilters, visibility, cache, indexTtl)
         : undefined,
     ])
 

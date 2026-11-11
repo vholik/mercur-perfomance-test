@@ -158,8 +158,10 @@ class OfferModuleService
     const rank = new Map(ids.map((id, index) => [id, index]))
     offers.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
 
+    const pageGroups = offers.map((offer) => [offer.product_id, offer.seller_id])
     const groupRows = (await scoped()
       .select("id", "product_id", "seller_id")
+      .whereIn(["product_id", "seller_id"], pageGroups)
       .orderBy("created_at", "desc")) as Array<{
       id: string
       product_id: string

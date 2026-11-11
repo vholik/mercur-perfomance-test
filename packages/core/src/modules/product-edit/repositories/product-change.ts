@@ -120,15 +120,25 @@ export class ProductChangeRepository extends DALUtils.mikroOrmBaseRepositoryFact
     const params: Knex.RawBinding[] = [
       ProductChangeStatus.PENDING,
       ProductStatus.PROPOSED,
+      ProductChangeActionType.PRODUCT_ADD,
       ProductChangeActionType.CHANGE_REQUESTED,
     ]
+    // The submission branch must not read `acts`: a predicate on the lateral
+    // forces Postgres to aggregate the actions of every change in the table
+    // before it can filter, which is the whole history on a mature catalog.
     const whereClauses: string[] = [
       "pc.deleted_at IS NULL",
       `(
         pc.status = ?
         OR (
-          acts.is_add
-          AND p.status = ?
+          p.status = ?
+          AND EXISTS (
+            SELECT 1
+            FROM product_change_action pa
+            WHERE pa.product_change_id = pc.id
+              AND pa.deleted_at IS NULL
+              AND pa.action = ?
+          )
           AND NOT EXISTS (
             SELECT 1
             FROM product_change_action r
