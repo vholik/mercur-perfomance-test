@@ -13,13 +13,22 @@ import { Counter } from "k6/metrics"
  *   in one call, and email/address are set at cart creation
  * - completing a cart returns an order group split into one order per seller
  *
+ * Two scenarios Medusa's script has no equivalent for run alongside the
+ * storefront ones:
+ * - vendorPanel: a seller member logs in, picks their store and walks the
+ *   vendor dashboard (orders, products, offers, inventory, payouts)
+ * - adminPanel: an operator walks the admin dashboard (orders, order groups,
+ *   sellers, products, offers, product changes, payouts)
+ *
  *   k6 run perf/k6/mercur-marketplace.js                       # smoke fixtures, full 420 VUs
  *   DATASET=large SCALE=0.05 k6 run perf/k6/mercur-marketplace.js
  *
  * Env: DATASET (fixtures file), SCALE (VU multiplier), RAMP / STEADY (stage
  * durations), ENDPOINT (overrides the fixtures endpoint), CLOUD=1 (k6 cloud),
  * RANDOM_PAGE=1 (spread product pages over the whole catalog; Medusa's script
- * and the default here always read page one).
+ * and the default here always read page one), SELLER_PASSWORD (the seed's
+ * seller password), ADMIN_EMAIL / ADMIN_PASSWORD (the admin scenario is
+ * skipped without them), STORE_ONLY=1 (storefront scenarios only).
  */
 
 const DATASET = __ENV.DATASET || "smoke"
@@ -36,6 +45,18 @@ const STEADY = __ENV.STEADY || "6m"
 
 const highVus = Math.max(1, Math.round(300 * SCALE))
 const lowVus = Math.max(1, Math.round(30 * SCALE))
+// Sellers and operators are far fewer than shoppers: 30 sellers and 10
+// operators at the full 420-VU profile.
+const vendorVus = Math.max(1, Math.round(30 * SCALE))
+const adminVus = Math.max(1, Math.round(10 * SCALE))
+
+const STORE_ONLY = __ENV.STORE_ONLY === "1"
+const SELLER_PASSWORD = __ENV.SELLER_PASSWORD || "supersecret"
+const ADMIN_EMAIL = __ENV.ADMIN_EMAIL
+const ADMIN_PASSWORD = __ENV.ADMIN_PASSWORD
+const withVendor = !STORE_ONLY
+const withAdmin = !STORE_ONLY && !!ADMIN_EMAIL && !!ADMIN_PASSWORD
+const sellerCount = fixtures.counts.sellers
 
 const promoApplicationRate = 0.1
 const minItemsInCart = 3
@@ -85,6 +106,8 @@ export const options = {
     addBrowseAddComplete: scenario("addBrowseAddComplete", lowVus),
     addMultipleAbandon: scenario("addMultipleAbandon", lowVus),
     addMultipleComplete: scenario("addMultipleComplete", lowVus),
+    ...(withVendor ? { vendorPanel: scenario("vendorPanel", vendorVus) } : {}),
+    ...(withAdmin ? { adminPanel: scenario("adminPanel", adminVus) } : {}),
   },
   thresholds: {
     "http_req_duration{scenario:browseCatalog}": ["p(95)<400"],
@@ -92,8 +115,26 @@ export const options = {
     "http_req_duration{scenario:addBrowseAddComplete}": ["p(95)<1200"],
     "http_req_duration{scenario:addMultipleAbandon}": ["p(95)<700"],
     "http_req_duration{scenario:addMultipleComplete}": ["p(95)<1200"],
+    ...(withVendor ? { "http_req_duration{scenario:vendorPanel}": ["p(95)<700"] } : {}),
+    ...(withAdmin ? { "http_req_duration{scenario:adminPanel}": ["p(95)<700"] } : {}),
     http_req_failed: ["rate<0.01"],
   },
+}
+
+export function setup() {
+  if (!withAdmin) {
+    return {}
+  }
+  const res = http.post(
+    `${endpoint}/auth/user/emailpass`,
+    JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+    { headers: { "Content-Type": "application/json" } }
+  )
+  const token = json(res, "token")
+  if (!token) {
+    throw new Error(`Admin login failed: ${res.status} ${res.body}`)
+  }
+  return { adminToken: token }
 }
 
 // /store/customers/me answers 401 for guests, as in Medusa's script.
@@ -423,4 +464,143 @@ export function addMultipleAbandon() {
 
 export function addMultipleComplete() {
   group("Shop Flow - Add Multiple Complete", () => addMultiple(true))
+}
+
+function authed(token, sellerId) {
+  return {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(sellerId ? { "x-seller-id": sellerId } : {}),
+    },
+  }
+}
+
+function panelRequest(session, method, path, body, name) {
+  const res = http.request(method, `${endpoint}${path}`, body ? JSON.stringify(body) : null, {
+    ...session,
+    tags: { name: `${endpoint}${name || path}` },
+  })
+  check(res, { [`${name || path} ok`]: (r) => r.status === 200 })
+  return res
+}
+
+function firstId(res, key) {
+  const items = json(res, key) || []
+  return items.length ? items[0].id : undefined
+}
+
+// One login per VU, like a panel tab that stays open. Each VU plays a
+// different seller, so the per-seller caches do not hide the list cost.
+let vendorSession
+
+function loginSeller() {
+  const index = (__VU % sellerCount) + 1
+  const email = `perf-seller-${String(index).padStart(4, "0")}@mercur.dev`
+  const res = http.post(
+    `${endpoint}/auth/member/emailpass`,
+    JSON.stringify({ email, password: SELLER_PASSWORD }),
+    { headers: { "Content-Type": "application/json" }, tags: { name: `${endpoint}/auth/member/emailpass` } }
+  )
+  check(res, { "seller login ok": (r) => r.status === 200 })
+  const token = json(res, "token")
+  if (!token) {
+    return undefined
+  }
+
+  const stores = http.get(`${endpoint}/vendor/sellers`, {
+    ...authed(token),
+    tags: { name: `${endpoint}/vendor/sellers` },
+  })
+  check(stores, { "seller stores ok": (r) => r.status === 200 })
+  const members = json(stores, "seller_members") || []
+  if (!members.length) {
+    return undefined
+  }
+  return authed(token, members[0].seller_id)
+}
+
+export function vendorPanel() {
+  group("Vendor Panel", () => {
+    if (!vendorSession) {
+      vendorSession = loginSeller()
+      if (!vendorSession) {
+        return
+      }
+    }
+    const s = vendorSession
+
+    panelRequest(s, "GET", "/vendor/sellers/me")
+    panelRequest(s, "GET", "/vendor/members/me")
+    think()
+
+    const orders = panelRequest(s, "GET", "/vendor/orders?limit=20", null, "/vendor/orders?limit")
+    think()
+    const orderId = firstId(orders, "orders")
+    if (orderId) {
+      panelRequest(s, "GET", `/vendor/orders/${orderId}`, null, "/vendor/orders/:id")
+      think()
+    }
+
+    const products = panelRequest(s, "GET", "/vendor/products?limit=20", null, "/vendor/products?limit")
+    think()
+    const productId = firstId(products, "products")
+    if (productId) {
+      panelRequest(s, "GET", `/vendor/products/${productId}`, null, "/vendor/products/:id")
+      think()
+    }
+
+    const offers = panelRequest(s, "GET", "/vendor/offers?limit=20", null, "/vendor/offers?limit")
+    think()
+    const offerId = firstId(offers, "offers")
+    if (offerId) {
+      panelRequest(s, "GET", `/vendor/offers/${offerId}`, null, "/vendor/offers/:id")
+      think()
+    }
+
+    panelRequest(s, "GET", "/vendor/inventory-items?limit=20", null, "/vendor/inventory-items?limit")
+    think()
+    panelRequest(s, "GET", "/vendor/payouts?limit=20", null, "/vendor/payouts?limit")
+    think(3, 4)
+  })
+}
+
+export function adminPanel(data) {
+  group("Admin Panel", () => {
+    const s = authed(data.adminToken)
+
+    const orders = panelRequest(s, "GET", "/admin/orders?limit=20", null, "/admin/orders?limit")
+    think()
+    const orderId = firstId(orders, "orders")
+    if (orderId) {
+      panelRequest(s, "GET", `/admin/orders/${orderId}`, null, "/admin/orders/:id")
+      think()
+    }
+
+    const groups = panelRequest(s, "GET", "/admin/order-groups?limit=20", null, "/admin/order-groups?limit")
+    think()
+    const groupId = firstId(groups, "order_groups")
+    if (groupId) {
+      panelRequest(s, "GET", `/admin/order-groups/${groupId}`, null, "/admin/order-groups/:id")
+      think()
+    }
+
+    const sellers = panelRequest(s, "GET", "/admin/sellers?limit=20", null, "/admin/sellers?limit")
+    think()
+    const sellerId = firstId(sellers, "sellers")
+    if (sellerId) {
+      panelRequest(s, "GET", `/admin/sellers/${sellerId}`, null, "/admin/sellers/:id")
+      think()
+    }
+
+    panelRequest(s, "GET", "/admin/products?limit=20", null, "/admin/products?limit")
+    think()
+    // The admin offers table groups one row per product and seller.
+    panelRequest(s, "GET", "/admin/offers?limit=20&group_by_seller=true", null, "/admin/offers?limit&group_by_seller")
+    think()
+    panelRequest(s, "GET", "/admin/product-changes?limit=20", null, "/admin/product-changes?limit")
+    think()
+    panelRequest(s, "GET", "/admin/payouts?limit=20", null, "/admin/payouts?limit")
+    think(3, 4)
+  })
 }

@@ -125,6 +125,27 @@ spreads the listing over the whole catalog instead, which defeats the list
 cache and measures the cold cost of the Index query; keep it out of runs that
 are compared with Medusa's numbers.
 
+### Vendor and admin scenarios
+
+Medusa's script only covers the storefront. Mercur has two more surfaces, so
+the script adds two scenarios that run next to the storefront ones:
+
+| Scenario      | VUs at full scale | What it does                                                                                   |
+| ------------- | ----------------- | ---------------------------------------------------------------------------------------------- |
+| `vendorPanel` | 30                | Logs in as a seed seller (one per VU), selects the store, then reads orders, products, offers, inventory and payouts, with one detail page each |
+| `adminPanel`  | 10                | Reads orders, order groups, sellers, products, offers grouped by seller, the product-change inbox and payouts, with one detail page each |
+
+The seller password is the seed's (`supersecret`, override with
+`SELLER_PASSWORD`). The admin scenario needs `ADMIN_EMAIL` and
+`ADMIN_PASSWORD` and is skipped without them. `STORE_ONLY=1` runs the
+storefront scenarios alone, for a run that matches Medusa's profile exactly.
+Both panel scenarios have a p95 threshold of 700 ms.
+
+```bash
+DATASET=large SCALE=0.05 ADMIN_EMAIL=admin@mercur.dev ADMIN_PASSWORD=... \
+  k6 run perf/k6/mercur-marketplace.js
+```
+
 ## Server-side cache knobs
 
 The store product routes cache the computed offer prices and the tax lines in
