@@ -123,19 +123,26 @@ export class ProductChangeRepository extends DALUtils.mikroOrmBaseRepositoryFact
       ProductChangeActionType.PRODUCT_ADD,
       ProductChangeActionType.CHANGE_REQUESTED,
     ]
-    // The submission branch must not read `acts`: a predicate on the lateral
-    // forces Postgres to aggregate the actions of every change in the table
-    // before it can filter, which is the whole history on a mature catalog.
+    // Each inbox branch starts from an index: pending changes by status, and
+    // submissions from the proposed products. One OR across the two tables
+    // would make Postgres walk every change and its actions, the whole
+    // history on a mature catalog.
     const whereClauses: string[] = [
       "pc.deleted_at IS NULL",
-      `(
-        pc.status = ?
-        OR (
-          p.status = ?
+      `pc.id IN (
+        SELECT pending.id
+        FROM product_change pending
+        WHERE pending.status = ? AND pending.deleted_at IS NULL
+        UNION ALL
+        SELECT sub.id
+        FROM product_change sub
+        JOIN product sp
+          ON sp.id = sub.product_id AND sp.deleted_at IS NULL AND sp.status = ?
+        WHERE sub.deleted_at IS NULL
           AND EXISTS (
             SELECT 1
             FROM product_change_action pa
-            WHERE pa.product_change_id = pc.id
+            WHERE pa.product_change_id = sub.id
               AND pa.deleted_at IS NULL
               AND pa.action = ?
           )
@@ -144,16 +151,15 @@ export class ProductChangeRepository extends DALUtils.mikroOrmBaseRepositoryFact
             FROM product_change_action r
             JOIN product_change rc
               ON rc.id = r.product_change_id AND rc.deleted_at IS NULL
-            WHERE r.product_id = pc.product_id
+            WHERE r.product_id = sub.product_id
               AND r.deleted_at IS NULL
               AND r.action = ?
               AND rc.created_at = (
                 SELECT MAX(lc.created_at)
                 FROM product_change lc
-                WHERE lc.product_id = pc.product_id AND lc.deleted_at IS NULL
+                WHERE lc.product_id = sub.product_id AND lc.deleted_at IS NULL
               )
           )
-        )
       )`,
     ]
 
