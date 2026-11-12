@@ -9,6 +9,14 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 module.exports = withMercur({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    // Checkout holds a connection for a second or more; with the default pool
+    // of 10 a few checkouts drain it and every other request on the pod queues.
+    databaseDriverOptions: {
+      pool: {
+        min: Number(process.env.DATABASE_POOL_MIN ?? 2),
+        max: Number(process.env.DATABASE_POOL_MAX ?? 40),
+      },
+    },
     redisUrl: REDIS_URL,
     http: {
       storeCors: process.env.STORE_CORS!,
