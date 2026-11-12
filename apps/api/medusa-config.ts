@@ -6,12 +6,22 @@ loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 
+// Setting databaseDriverOptions replaces Medusa's default, SSL included, so
+// the default's rule is repeated here: no SSL for a local or explicitly
+// unencrypted database, otherwise SSL without certificate verification.
+const DATABASE_SSL = /localhost|127\.0\.0\.1|ssl_mode=(disable|false)|sslmode=(disable)/i.test(
+  process.env.DATABASE_URL ?? ''
+)
+  ? false
+  : { rejectUnauthorized: false }
+
 module.exports = withMercur({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     // Checkout holds a connection for a second or more; with the default pool
     // of 10 a few checkouts drain it and every other request on the pod queues.
     databaseDriverOptions: {
+      connection: { ssl: DATABASE_SSL },
       pool: {
         min: Number(process.env.DATABASE_POOL_MIN ?? 2),
         max: Number(process.env.DATABASE_POOL_MAX ?? 40),
