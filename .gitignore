@@ -59,3 +59,4 @@ docs/specs/
 # load-test artefacts
 *.dump
 perf/results/*.csv
+perf/ec2/.instance-*

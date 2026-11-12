@@ -78,11 +78,43 @@ module's objects: the `cat_*` partitions under `index_data`, and the
 `update_document_tsv()` trigger function. The script dumps a copy of the
 database with those objects removed, and the target keeps its own Index tables.
 
-**Rebuild the Index after every import.** Imported rows never reach the Index,
-and `/store/offers` reads from it when the Index engine is enabled. Until the
-rebuild it returns an empty list with status 200. Log in as the admin user the
-seed created (`admin@mercur.dev`; the password is `PERF_ADMIN_PASSWORD` or the
-one printed by the seed) and reset the Index:
+### Shipping the Index with the dump
+
+`/store/offers` reads from the Index module when the Index engine is enabled,
+and the seed never builds it (`medusa exec` runs no sync). Building it on
+Cloud by `POST /admin/index/sync` is far too slow for the large dataset: the
+Offer entity advanced about 1,500 rows an hour there, nine days for 508k
+offers, while a local server synced all nine entities in under six minutes.
+So build it locally and ship it inside the dump:
+
+```bash
+cd apps/api
+PORT=9100 REDIS_URL=redis://localhost:6379/5 \
+  DATABASE_URL=postgres://localhost:5433/mercur_perf_large yarn medusa develop
+# wait for "[Index engine] syncing entity '...' done" for every entity,
+# or poll GET /admin/index/details until all are "done", then stop the server
+PGHOST=localhost PGPORT=5433 KEEP_INDEX=1 \
+  perf/export-dump.sh mercur_perf_large mercur_perf_large_indexed.dump
+```
+
+`KEEP_INDEX=1` keeps the four `index_*` tables. The restore's `--clean` fails
+on a partition's inherited primary-key or unique constraint, so the export
+copy swaps those three constraints on `index_data` and `index_relation` for
+unique indexes of the same columns. The module's upserts only need the unique
+`(id, name)`, and pg_dump emits no drop for an index partition. The result
+restores with Cloud's flags into a database whose server already created the
+partitions, verified locally; the Index engine then reports zero pending
+changes on boot.
+
+Right after an import the Index tables have no planner statistics, so the
+store's `count` (a `count_estimate` over the query plan) is wrong until
+autovacuum analyzes them, a few minutes at most. Run nothing against the
+import until `GET /store/offers` reports the full count.
+
+**Without the Index in the dump, rebuild it after every import.** Until then
+`/store/offers` returns an empty list with status 200. Log in as the admin user
+the seed created (`admin@mercur.dev`; the password is `PERF_ADMIN_PASSWORD` or
+the one printed by the seed) and reset the Index:
 
 ```bash
 TOKEN=$(curl -s -X POST "$ENDPOINT/auth/user/emailpass" -H 'Content-Type: application/json' \
@@ -145,6 +177,30 @@ Both panel scenarios have a p95 threshold of 700 ms.
 DATASET=large SCALE=0.05 ADMIN_EMAIL=admin@mercur.dev ADMIN_PASSWORD=... \
   k6 run perf/k6/mercur-marketplace.js
 ```
+
+### Running from the deployment's region
+
+Medusa Cloud runs `mercur.medusajs.app` in AWS eu-central-1 (its CNAME is
+`t1-aws-euc1-cdn.medusajs.app`). Runs from a laptop add about 40 ms of
+network per request, so the published runs come from an EC2 instance in that
+region. `perf/ec2/` holds the scripts:
+
+```bash
+perf/ec2/launch.sh            # c6i.xlarge, Ubuntu 24.04, k6 installed on boot
+ssh ubuntu@$(cat perf/ec2/.instance-ip)
+echo '<admin password>' > ~/.perf-admin-password
+mercur/perf/ec2/run.sh large-420vu-euc1 1      # runs in tmux; label, SCALE
+tmux attach -t large-420vu-euc1
+perf/ec2/terminate.sh         # when done
+```
+
+`launch.sh` needs AWS credentials with EC2 and SSM read access. It imports
+`~/.ssh/id_ed25519.pub` as the key pair and opens port 22 to the launching
+machine's IP only. Copy results back with `scp` into `perf/results/`.
+
+Keep the script's 2-minute ramp. Cloud autoscaling takes one to two minutes
+to add pods, so a run that jumps straight to full load needs the deployment
+pre-scaled by Medusa first.
 
 ## Server-side cache knobs
 

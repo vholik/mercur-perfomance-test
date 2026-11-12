@@ -26,7 +26,24 @@ EXPORT_DB="${DB}_export"
 "$PG_BIN/createdb" -T "$DB" "$EXPORT_DB"
 trap '"$PG_BIN/dropdb" --if-exists "$EXPORT_DB"' EXIT
 
-"$PG_BIN/psql" -q -v ON_ERROR_STOP=1 -d "$EXPORT_DB" <<'SQL'
+if [ "${KEEP_INDEX:-0}" = "1" ]; then
+  # Keep the built Index. The restore's --clean emits a DROP CONSTRAINT for
+  # every partition's inherited primary key, which Postgres refuses, so the
+  # dump carries the parents' keys as unique indexes instead: the module's
+  # upserts only need a unique (id, name), and pg_dump emits no drop for an
+  # index partition.
+  "$PG_BIN/psql" -q -v ON_ERROR_STOP=1 -d "$EXPORT_DB" <<'SQL'
+ALTER TABLE public.index_data DROP CONSTRAINT index_data_pkey;
+CREATE UNIQUE INDEX index_data_id_name_key ON public.index_data (id, name);
+ALTER TABLE public.index_relation DROP CONSTRAINT index_relation_pkey;
+CREATE UNIQUE INDEX index_relation_id_pivot_key ON public.index_relation (id, pivot);
+ALTER TABLE public.index_relation
+  DROP CONSTRAINT "IDX_index_relation_id_pivot_parent_name_child_name_parent_id_ch";
+CREATE UNIQUE INDEX index_relation_parent_child_key
+  ON public.index_relation (parent_id, child_id, child_name, parent_name, pivot);
+SQL
+else
+  "$PG_BIN/psql" -q -v ON_ERROR_STOP=1 -d "$EXPORT_DB" <<'SQL'
 SET client_min_messages = warning;
 DO $$ DECLARE r record; BEGIN
   FOR r IN SELECT tablename FROM pg_tables
@@ -38,6 +55,7 @@ DO $$ DECLARE r record; BEGIN
 END $$;
 DROP FUNCTION IF EXISTS public.update_document_tsv() CASCADE;
 SQL
+fi
 
 "$PG_BIN/pg_dump" -Fc --no-owner --no-acl -d "$EXPORT_DB" -f "$OUT"
 echo "Wrote $OUT"
