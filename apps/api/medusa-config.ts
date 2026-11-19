@@ -15,13 +15,38 @@ const DATABASE_SSL = /localhost|127\.0\.0\.1|ssl_mode=(disable|false)|sslmode=(d
   ? false
   : { rejectUnauthorized: false }
 
+// A statement that runs past this is cancelled instead of holding its
+// connection (and the pool) while every other request queues behind it. The
+// shared knex connection only forwards a fixed set of driver options, so the
+// timeout travels as a startup parameter on the URL, which also reaches the
+// MikroORM connections. 0 disables it.
+const STATEMENT_TIMEOUT_MS = Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? 10_000)
+
+const withStatementTimeout = (url: string | undefined) => {
+  if (!url || !STATEMENT_TIMEOUT_MS) {
+    return url
+  }
+  const parsed = new URL(url)
+  const options = parsed.searchParams.get('options')
+  parsed.searchParams.set(
+    'options',
+    `${options ? `${options} ` : ''}-c statement_timeout=${STATEMENT_TIMEOUT_MS}`
+  )
+  return parsed.toString()
+}
+
 module.exports = withMercur({
   projectConfig: {
-    databaseUrl: process.env.DATABASE_URL,
+    databaseUrl: withStatementTimeout(process.env.DATABASE_URL),
     // Checkout holds a connection for a second or more; with the default pool
     // of 10 a few checkouts drain it and every other request on the pod queues.
     databaseDriverOptions: {
       connection: { ssl: DATABASE_SSL },
+      // A transaction left open by a crashed request keeps its row locks;
+      // Postgres ends the session instead.
+      idle_in_transaction_session_timeout: Number(
+        process.env.DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS ?? 30_000
+      ),
       pool: {
         min: Number(process.env.DATABASE_POOL_MIN ?? 2),
         max: Number(process.env.DATABASE_POOL_MAX ?? 40),
