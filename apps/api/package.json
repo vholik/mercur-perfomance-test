@@ -42,6 +42,7 @@
     "@mercurjs/core": "workspace:*",
     "@mercurjs/stripe-connector-plugin": "workspace:*",
     "@mercurjs/types": "workspace:*",
+    "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
     "http-proxy-middleware": "^3.0.3"
   },
   "devDependencies": {

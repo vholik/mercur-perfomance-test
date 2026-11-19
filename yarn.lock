@@ -62,6 +62,7 @@ __metadata:
     "@mercurjs/core": "workspace:*"
     "@mercurjs/stripe-connector-plugin": "workspace:*"
     "@mercurjs/types": "workspace:*"
+    "@opentelemetry/exporter-trace-otlp-http": "npm:0.220.0"
     "@swc/core": "npm:^1.7.28"
     "@swc/jest": "npm:^0.2.36"
     "@types/jest": "npm:^30.0.0"
