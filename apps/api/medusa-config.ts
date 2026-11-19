@@ -19,8 +19,10 @@ const DATABASE_SSL = /localhost|127\.0\.0\.1|ssl_mode=(disable|false)|sslmode=(d
 // connection (and the pool) while every other request queues behind it. The
 // shared knex connection only forwards a fixed set of driver options, so the
 // timeout travels as a startup parameter on the URL, which also reaches the
-// MikroORM connections. 0 disables it.
-const STATEMENT_TIMEOUT_MS = Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? 10_000)
+// MikroORM connections. Off unless set: a startup parameter stops a
+// transaction-mode pooler (PgBouncer, Neon's pooled endpoint) from sharing
+// server connections, so only enable it against a direct endpoint.
+const STATEMENT_TIMEOUT_MS = Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? 0)
 
 const withStatementTimeout = (url: string | undefined) => {
   if (!url || !STATEMENT_TIMEOUT_MS) {
