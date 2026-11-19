@@ -47,6 +47,46 @@ export const cartFieldsForRefreshSteps = [
     "payment_collection.payment_sessions.id",
 ]
 
+// The cart as re-read after lines or methods were written, for the refresh
+// steps that follow: tax lines read the address, region, customer and the
+// line items' own product columns; the shipping refresh reads the methods and
+// each item's shipping profile; the payment refresh reads the totals and the
+// collection. Nothing reads the product graph or variant dimensions there, so
+// those relations are left out of the hottest write path.
+export const cartFieldsForRefreshAfterWrite = [
+    "id",
+    "email",
+    "currency_code",
+    "locale",
+    "total",
+    "raw_total",
+    "region_id",
+    "completed_at",
+    "sales_channel_id",
+    "region.id",
+    "region.currency_code",
+    "region.automatic_taxes",
+    "items.*",
+    "items.variant.id",
+    "items.variant.product.id",
+    "items.variant.product.shipping_profile.id",
+    "items.tax_lines.*",
+    "shipping_address.*",
+    "shipping_methods.*",
+    "shipping_methods.tax_lines.*",
+    "customer.id",
+    "customer.email",
+    "customer.metadata",
+    "customer.groups.id",
+    "promotions.id",
+    "promotions.code",
+    "payment_collection.id",
+    "payment_collection.raw_amount",
+    "payment_collection.amount",
+    "payment_collection.currency_code",
+    "payment_collection.payment_sessions.id",
+]
+
 export const completeCartFields = [
     "metadata",
     "id",

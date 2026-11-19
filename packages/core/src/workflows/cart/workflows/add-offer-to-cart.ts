@@ -40,7 +40,7 @@ import { MercurModules } from "@mercurjs/types"
 import { createLinksStep } from "../../common/steps"
 import {
     cartFieldsForPricingContext,
-    cartFieldsForRefreshSteps,
+    cartFieldsForRefreshAfterWrite,
     prepareLineItemData,
     pricingContextResult,
 } from "../utils"
@@ -322,7 +322,7 @@ export const addOfferToCartWorkflow = createWorkflow(
             createLinksStep(offerLinks),
             useQueryGraphStep({
                 entity: "cart",
-                fields: cartFieldsForRefreshSteps,
+                fields: cartFieldsForRefreshAfterWrite,
                 filters: { id: cart.id },
                 options: { isList: false },
             }).config({ name: "refetch-cart" })

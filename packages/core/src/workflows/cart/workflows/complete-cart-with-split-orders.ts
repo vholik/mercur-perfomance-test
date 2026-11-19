@@ -77,8 +77,12 @@ export type SetOrderStatusHookResult =
     | undefined
 
 // Lock timeout/ttl and retentionTime are seconds, the same units the native
-// completeCartWorkflow uses.
+// completeCartWorkflow uses. The execution is kept for an hour, not Medusa's
+// three days: nothing reads it back after the response, and every checkout
+// otherwise leaves its full checkpoint (the cart graph at each step) in the
+// workflow store for days.
 export const THREE_DAYS = 3 * 24 * 60 * 60
+export const ONE_HOUR = 60 * 60
 export const THIRTY_SECONDS = 30
 export const TWO_MINUTES = 2 * 60
 
@@ -87,7 +91,7 @@ export const completeCartWithSplitOrdersWorkflow = createWorkflow(
         name: "complete-cart-with-split-orders",
         store: true,
         idempotent: false,
-        retentionTime: THREE_DAYS,
+        retentionTime: ONE_HOUR,
     },
     (input: CompleteCartWithSplitOrdersWorkflowInput) => {
         // processPaymentWorkflow releases its own cart lock before running this

@@ -10,7 +10,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { acquireLockStep, addShippingMethodToCartStep, AddShippingMethodToCartWorkflowInput, emitEventStep, refreshPaymentCollectionForCartWorkflow, releaseLockStep, removeShippingMethodFromCartStep, updateCartPromotionsWorkflow, upsertTaxLinesWorkflow, useQueryGraphStep, useRemoteQueryStep, validateAndReturnShippingMethodsDataStep, validateCartShippingOptionsPriceStep, validateCartShippingOptionsStep, validateCartStep } from "@medusajs/medusa/core-flows"
 import { AdditionalData, ShippingOptionDTO } from "@medusajs/types"
-import { cartFieldsForRefreshSteps } from "../utils"
+import { cartFieldsForRefreshAfterWrite, cartFieldsForRefreshSteps } from "../utils"
 import { listSellerShippingOptionsForCartWorkflow } from "./list-seller-shipping-options-for-cart"
 
 type PricedSellerShippingOption = ShippingOptionDTO & {
@@ -190,7 +190,7 @@ export const addSellerShippingMethodToCartWorkflow = createWorkflow(
         // a second time, and runs only the refresh steps the new methods need.
         const { data: refetchedCart } = useQueryGraphStep({
             entity: "cart",
-            fields: cartFieldsForRefreshSteps,
+            fields: cartFieldsForRefreshAfterWrite,
             filters: { id: cart.id },
             options: { isList: false },
         }).config({ name: "refetch-cart" })
