@@ -28,7 +28,18 @@ import { Counter, Trend } from "k6/metrics"
  * RANDOM_PAGE=1 (spread product pages over the whole catalog; Medusa's script
  * and the default here always read page one), SELLER_PASSWORD (the seed's
  * seller password), ADMIN_EMAIL / ADMIN_PASSWORD (the admin scenario is
- * skipped without them), STORE_ONLY=1 (storefront scenarios only).
+ * skipped without them), STORE_ONLY=1 (storefront scenarios only),
+ * BROWSE_ONLY=1 (every VU browses, no carts: a read-only run at the same
+ * total VUs, to tell write-driven stalls from read capacity), PROFILE
+ * (how the storefront VUs split between browsing and shopping, see below).
+ *
+ * PROFILE=marketplace (default) spreads the 420 storefront VUs the way
+ * marketplace traffic arrives: 340 browse, 50 start a cart and leave it, 30
+ * complete a checkout. That is one cart per five sessions and one order per
+ * fourteen, with 2 to 4 lines in a multi-item cart. PROFILE=benchmark is
+ * Medusa's own split, 300 browse and 30 VUs in each of the four shop flows,
+ * which places an order every two seconds from 60 VUs and is a checkout
+ * stress test rather than a traffic model.
  */
 
 const DATASET = __ENV.DATASET || "smoke"
@@ -43,24 +54,33 @@ const SCALE = Number(__ENV.SCALE || 1)
 const RAMP = __ENV.RAMP || "2m"
 const STEADY = __ENV.STEADY || "6m"
 
-const highVus = Math.max(1, Math.round(300 * SCALE))
-const lowVus = Math.max(1, Math.round(30 * SCALE))
+const PROFILE = __ENV.PROFILE || "marketplace"
+const vus = (n) => Math.max(1, Math.round(n * SCALE))
+// Storefront VUs per scenario at SCALE=1; both profiles total 420.
+const shopVus =
+  PROFILE === "benchmark"
+    ? { browse: 300, browseAbandon: 30, browseComplete: 30, multiAbandon: 30, multiComplete: 30 }
+    : { browse: 340, browseAbandon: 30, browseComplete: 15, multiAbandon: 20, multiComplete: 15 }
+const highVus = vus(shopVus.browse)
+const storefrontVus = Object.values(shopVus).reduce((a, b) => a + b, 0)
 // Sellers and operators are far fewer than shoppers: 30 sellers and 10
 // operators at the full 420-VU profile.
 const vendorVus = Math.max(1, Math.round(30 * SCALE))
 const adminVus = Math.max(1, Math.round(10 * SCALE))
 
 const STORE_ONLY = __ENV.STORE_ONLY === "1"
+const BROWSE_ONLY = __ENV.BROWSE_ONLY === "1"
 const SELLER_PASSWORD = __ENV.SELLER_PASSWORD || "supersecret"
 const ADMIN_EMAIL = __ENV.ADMIN_EMAIL
 const ADMIN_PASSWORD = __ENV.ADMIN_PASSWORD
-const withVendor = !STORE_ONLY
-const withAdmin = !STORE_ONLY && !!ADMIN_EMAIL && !!ADMIN_PASSWORD
+const withShop = !BROWSE_ONLY
+const withVendor = !STORE_ONLY && !BROWSE_ONLY
+const withAdmin = withVendor && !!ADMIN_EMAIL && !!ADMIN_PASSWORD
 const sellerCount = fixtures.counts.sellers
 
 const promoApplicationRate = 0.1
-const minItemsInCart = 3
-const maxItemsInCart = 5
+const minItemsInCart = PROFILE === "benchmark" ? 3 : 2
+const maxItemsInCart = PROFILE === "benchmark" ? 5 : 4
 const pageSize = 20
 
 const ordersPlaced = new Counter("orders_placed")
@@ -111,11 +131,18 @@ export const options = {
       }
     : {}),
   scenarios: {
-    browseCatalog: scenario("browseCatalog", highVus),
-    addBrowseAddAbandon: scenario("addBrowseAddAbandon", lowVus),
-    addBrowseAddComplete: scenario("addBrowseAddComplete", lowVus),
-    addMultipleAbandon: scenario("addMultipleAbandon", lowVus),
-    addMultipleComplete: scenario("addMultipleComplete", lowVus),
+    browseCatalog: scenario(
+      "browseCatalog",
+      BROWSE_ONLY ? vus(storefrontVus) + vendorVus + adminVus : highVus
+    ),
+    ...(withShop
+      ? {
+          addBrowseAddAbandon: scenario("addBrowseAddAbandon", vus(shopVus.browseAbandon)),
+          addBrowseAddComplete: scenario("addBrowseAddComplete", vus(shopVus.browseComplete)),
+          addMultipleAbandon: scenario("addMultipleAbandon", vus(shopVus.multiAbandon)),
+          addMultipleComplete: scenario("addMultipleComplete", vus(shopVus.multiComplete)),
+        }
+      : {}),
     ...(withVendor ? { vendorPanel: scenario("vendorPanel", vendorVus) } : {}),
     ...(withAdmin ? { adminPanel: scenario("adminPanel", adminVus) } : {}),
   },

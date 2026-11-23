@@ -1060,7 +1060,11 @@ export default async function seedMarketplace({ container, args }: ExecArgs) {
   await ensureAdminUser(container)
   const sellers = await seedSellers(container, ctx, preset.sellers)
   await seedProducts(container, ctx, preset.products, sellers[0].memberId)
-  await seedOffers(container, ctx, sellers, preset.products)
+  // The workflow path writes about 12 offers a second; the heavy preset's
+  // offers come from perf/bulk-offers.sql instead, run after this seed.
+  if (process.env.PERF_SKIP_OFFERS !== "1") {
+    await seedOffers(container, ctx, sellers, preset.products)
+  }
 
   const counts = {
     sellers: await countOf(container, "seller"),

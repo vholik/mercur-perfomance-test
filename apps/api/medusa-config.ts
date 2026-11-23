@@ -4,6 +4,39 @@ import { withMercur } from '@mercurjs/core'
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
+
+// Seed scripts run without a worker to drain the event queue, so every event
+// they emit would sit in Redis forever; the in-memory modules drop them.
+const redisModules =
+  process.env.PERF_IN_MEMORY_MODULES === '1'
+    ? []
+    : [
+        {
+          resolve: '@medusajs/medusa/cache-redis',
+          options: { redisUrl: REDIS_URL },
+        },
+        {
+          resolve: '@medusajs/medusa/event-bus-redis',
+          options: { redisUrl: REDIS_URL },
+        },
+        {
+          resolve: '@medusajs/medusa/workflow-engine-redis',
+          options: { redis: { url: REDIS_URL } },
+        },
+        {
+          resolve: '@medusajs/medusa/locking',
+          options: {
+            providers: [
+              {
+                resolve: '@medusajs/medusa/locking-redis',
+                id: 'locking-redis',
+                is_default: true,
+                options: { redisUrl: REDIS_URL },
+              },
+            ],
+          },
+        },
+      ]
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 
 // Setting databaseDriverOptions replaces Medusa's default, SSL included, so
@@ -140,31 +173,7 @@ module.exports = withMercur({
         disable: true
       }
     },
-    {
-      resolve: '@medusajs/medusa/cache-redis',
-      options: { redisUrl: REDIS_URL },
-    },
-    {
-      resolve: '@medusajs/medusa/event-bus-redis',
-      options: { redisUrl: REDIS_URL },
-    },
-    {
-      resolve: '@medusajs/medusa/workflow-engine-redis',
-      options: { redis: { url: REDIS_URL } },
-    },
-    {
-      resolve: '@medusajs/medusa/locking',
-      options: {
-        providers: [
-          {
-            resolve: '@medusajs/medusa/locking-redis',
-            id: 'locking-redis',
-            is_default: true,
-            options: { redisUrl: REDIS_URL },
-          },
-        ],
-      },
-    },
+    ...redisModules,
     {
       resolve: '@medusajs/medusa/file',
       options: {

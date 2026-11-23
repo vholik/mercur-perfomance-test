@@ -61,6 +61,29 @@ products were 8 minutes (about 106/s) and offers the rest (about 12/s). At
 that rate `heavy` would take days, so it needs a bulk-insert path for offers
 before it is worth starting. Redis is not part of the dump.
 
+### The heavy preset
+
+At 12 offers a second the workflow path needs five days for 5M offers, so the
+heavy preset seeds sellers and products through the workflows and the offers
+through SQL:
+
+```bash
+cd apps/api
+PERF_SKIP_OFFERS=1 DATABASE_URL=postgres://localhost:5433/mercur_perf_heavy \
+  yarn medusa exec ./src/scripts/perf/seed-marketplace.ts heavy   # ~90 min
+psql -h localhost -p 5433 -d mercur_perf_heavy -v ON_ERROR_STOP=1 -f ../../perf/bulk-offers.sql
+```
+
+`perf/bulk-offers.sql` writes, for every product without offers, the same rows
+`createOffersWorkflow` does: offer, product and seller links, an inventory item
+with a stock level at the seller's warehouse, EUR and USD prices in the
+variant's price set scoped by an `offer_id` rule, and the price links. Sellers
+per product follow the seed's distribution from a hash of the product id. Pass
+`-v product_limit=200` to try it on a sample. The script emits no events, so
+the Index is rebuilt from scratch on the next boot, which is what the
+indexed-dump procedure below does anyway. After it, fix the offer count in
+`perf/fixtures/heavy.json`, which the seed wrote before the offers existed.
+
 ## Moving the data to Medusa Cloud
 
 Medusa Cloud runs Postgres 16 and rejects dumps from newer `pg_dump`
@@ -151,6 +174,23 @@ Follow Medusa Cloud's guidance:
    be pre-scaled, so arrange that with Medusa before any test that does it.
 4. **Publish only full runs.** Use 420 VUs on Grafana Cloud k6 (2m ramp up,
    6m steady, 2m ramp down), from the load zone closest to the deployment.
+
+### Traffic profile
+
+Medusa's script gives 60 of its 420 VUs to checkout, an order every two
+seconds. That is a checkout stress test, and on the large dataset every
+checkout also splits into several seller orders, so the write burst is far
+heavier than the same VUs on a single-vendor shop. The published runs use the
+`marketplace` profile instead, which keeps the 420 storefront VUs and the
+dataset and splits them the way marketplace traffic arrives:
+
+| Profile                | Browse | Cart, abandoned | Checkout | Lines in a multi-item cart |
+| ---------------------- | ------ | --------------- | -------- | -------------------------- |
+| `marketplace` (default) | 340    | 50              | 30       | 2–4                        |
+| `benchmark`            | 300    | 60              | 60       | 3–5                        |
+
+Select with `PROFILE=benchmark` for Medusa's split. Thresholds are the same
+in both. State the profile next to any published number.
 
 The product listing reads page one, as Medusa's script does. `RANDOM_PAGE=1`
 spreads the listing over the whole catalog instead, which defeats the list

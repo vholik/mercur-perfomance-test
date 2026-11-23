@@ -1,0 +1,54 @@
+{
+  "dataset": "heavy",
+  "endpoint": "https://unused-committee-misuse.medusajs.app",
+  "publishable_key": "pk_8ecdf6c234c8e6b4941ea3e0a877856b95c368121b59fee147134e60d91d2847",
+  "regions": [
+    {
+      "id": "reg_01M7WS1V6KT6QVRXAAQZG3YKJX",
+      "name": "Europe",
+      "currency_code": "eur",
+      "countries": [
+        "de",
+        "fr",
+        "nl",
+        "es",
+        "it"
+      ]
+    },
+    {
+      "id": "reg_01M7WS1V6KPMSNZFT07VAMAW1F",
+      "name": "Nordics",
+      "currency_code": "eur",
+      "countries": [
+        "dk",
+        "se",
+        "fi"
+      ]
+    },
+    {
+      "id": "reg_01M7WS1V6K9G5AX5HZQVX41W4J",
+      "name": "United States",
+      "currency_code": "usd",
+      "countries": [
+        "us"
+      ]
+    },
+    {
+      "id": "reg_01M7WS1V6KBPCP78KWD5ND2Y6B",
+      "name": "Canada",
+      "currency_code": "usd",
+      "countries": [
+        "ca"
+      ]
+    }
+  ],
+  "payment_provider_id": "pp_system_default",
+  "promo_code": "10OFF",
+  "counts": {
+    "sellers": 2000,
+    "products": 500000,
+    "variants": 1500493,
+    "offers": 5031956
+  },
+  "seeded_at": "2026-11-21T19:19:30.531Z"
+}

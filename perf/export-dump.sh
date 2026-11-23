@@ -54,6 +54,10 @@ DO $$ DECLARE r record; BEGIN
   END LOOP;
 END $$;
 DROP FUNCTION IF EXISTS public.update_document_tsv() CASCADE;
+-- The dump still carries the Index module's migration rows. On a fresh
+-- database `db:migrate` would then skip creating the tables it just lost.
+DELETE FROM public.mikro_orm_migrations
+  WHERE name ~ '^Migration(20231019174230|20241209173313|20250122154720|20250127105159|20250127144442|20250128132404|20250218132404|20250515161913)$';
 SQL
 fi
 
