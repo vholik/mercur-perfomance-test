@@ -1,0 +1,664 @@
+{
+    "metrics": {
+        "http_req_duration{scenario:addMultipleComplete}": {
+            "med": 185.728158,
+            "max": 38388.481344,
+            "p(90)": 1379.988712,
+            "p(95)": 3462.71151725,
+            "avg": 802.77003182671,
+            "min": 15.949486,
+            "thresholds": {
+                "p(95)<1200": true
+            }
+        },
+        "http_req_tls_handshaking": {
+            "med": 0,
+            "max": 23.724867,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0.0432958013398416,
+            "min": 0
+        },
+        "http_req_connecting": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0.007194867161428501,
+            "min": 0,
+            "med": 0,
+            "max": 13.620264
+        },
+        "http_req_sending": {
+            "med": 0.037592,
+            "max": 21.221532,
+            "p(90)": 0.05685020000000001,
+            "p(95)": 0.06477965,
+            "avg": 0.04220653527668505,
+            "min": 0.005363
+        },
+        "group_duration": {
+            "min": 11510.1951,
+            "med": 19476.598888,
+            "max": 116817.415522,
+            "p(90)": 26675.5321328,
+            "p(95)": 36131.62595880001,
+            "avg": 21529.403176639793
+        },
+        "iterations": {
+            "count": 9450,
+            "rate": 14.999980212811817
+        },
+        "orders_placed": {
+            "count": 148,
+            "rate": 0.2349203250260475
+        },
+        "order_seller_splits": {
+            "rate": 0.5777770156046034,
+            "count": 364
+        },
+        "http_req_duration{scenario:addMultipleAbandon}": {
+            "med": 141.0277205,
+            "max": 29283.214021,
+            "p(90)": 1120.9661224000001,
+            "p(95)": 2577.43159714998,
+            "avg": 666.0785174135947,
+            "min": 16.65287,
+            "thresholds": {
+                "p(95)<700": true
+            }
+        },
+        "http_req_waiting": {
+            "max": 38388.382516,
+            "p(90)": 812.0776057000003,
+            "p(95)": 1331.2647672499977,
+            "avg": 374.8791604366651,
+            "min": 13.630923,
+            "med": 73.96025
+        },
+        "iteration_duration": {
+            "avg": 21717.426043363823,
+            "min": 11510.225429,
+            "med": 19483.5621155,
+            "max": 116817.454893,
+            "p(90)": 27151.1124147,
+            "p(95)": 37558.7683509
+        },
+        "http_reqs": {
+            "count": 80308,
+            "rate": 127.47284771751232
+        },
+        "http_req_duration{scenario:addBrowseAddAbandon}": {
+            "med": 127.2992575,
+            "max": 26489.454697,
+            "p(90)": 981.0029721999999,
+            "p(95)": 1830.2655587000002,
+            "avg": 539.5215217617166,
+            "min": 15.779312,
+            "thresholds": {
+                "p(95)<700": true
+            }
+        },
+        "http_req_duration": {
+            "avg": 376.2273214447528,
+            "min": 13.902622,
+            "med": 75.60605050000001,
+            "max": 38388.481344,
+            "p(90)": 815.4078479000005,
+            "p(95)": 1334.390617049999
+        },
+        "data_received": {
+            "count": 3423341145,
+            "rate": 5433867.665259741
+        },
+        "vus_max": {
+            "value": 420,
+            "min": 420,
+            "max": 420
+        },
+        "http_req_duration{scenario:addBrowseAddComplete}": {
+            "avg": 721.7596880598506,
+            "min": 16.258257,
+            "med": 152.0243275,
+            "max": 35187.065611,
+            "p(90)": 1091.7837494999999,
+            "p(95)": 2362.54919825,
+            "thresholds": {
+                "p(95)<1200": true
+            }
+        },
+        "http_req_blocked": {
+            "p(95)": 0.00055,
+            "avg": 0.05229551681027923,
+            "min": 0.00007,
+            "med": 0.000232,
+            "max": 38.018308,
+            "p(90)": 0.000444
+        },
+        "checks": {
+            "passes": 51551,
+            "fails": 0,
+            "value": 1
+        },
+        "data_sent": {
+            "rate": 26012.47679681428,
+            "count": 16387882
+        },
+        "server_time": {
+            "min": 6,
+            "med": 82,
+            "max": 38353,
+            "p(90)": 1091.800000000003,
+            "p(95)": 2084,
+            "avg": 504.9345310524181
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 80308,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_duration{expected_response:true}": {
+            "med": 75.60605050000001,
+            "max": 38388.481344,
+            "p(90)": 815.4078479000005,
+            "p(95)": 1334.390617049999,
+            "avg": 376.2273214447528,
+            "min": 13.902622
+        },
+        "http_req_receiving": {
+            "avg": 1.3059544728047037,
+            "min": 0.016659,
+            "med": 0.135859,
+            "max": 327.170561,
+            "p(90)": 2.2028145000000006,
+            "p(95)": 4.616434049999999
+        },
+        "vus": {
+            "value": 2,
+            "min": 2,
+            "max": 420
+        },
+        "http_req_duration{scenario:browseCatalog}": {
+            "min": 13.902622,
+            "med": 66.2735595,
+            "max": 14833.353478,
+            "p(90)": 772.2538056000004,
+            "p(95)": 1238.5765066499966,
+            "avg": 323.96207518299815,
+            "thresholds": {
+                "p(95)<400": true
+            }
+        }
+    },
+    "setup_data": {},
+    "root_group": {
+            "name": "",
+            "path": "",
+            "id": "d41d8cd98f00b204e9800998ecf8427e",
+            "groups": {
+                "Shop Flow - Add Multiple Complete": {
+                    "name": "Shop Flow - Add Multiple Complete",
+                    "path": "::Shop Flow - Add Multiple Complete",
+                    "id": "8bbbe8de284fb9ce5b86458608817e49",
+                    "groups": {
+                        "Browse Flow": {
+                            "name": "Browse Flow",
+                            "path": "::Shop Flow - Add Multiple Complete::Browse Flow",
+                            "id": "d6daa6e70cc5b9111dc2ba433379b228",
+                            "groups": {},
+                            "checks": {
+                                    "regions ok": {
+                                        "name": "regions ok",
+                                        "path": "::Shop Flow - Add Multiple Complete::Browse Flow::regions ok",
+                                        "id": "8aa400627533e1f47be3178b6ef3c1cc",
+                                        "passes": 150,
+                                        "fails": 0
+                                    },
+                                    "collections ok": {
+                                        "name": "collections ok",
+                                        "path": "::Shop Flow - Add Multiple Complete::Browse Flow::collections ok",
+                                        "id": "188e287e6c6d13354a497dbac296ca68",
+                                        "passes": 150,
+                                        "fails": 0
+                                    },
+                                    "products list ok": {
+                                        "fails": 0,
+                                        "name": "products list ok",
+                                        "path": "::Shop Flow - Add Multiple Complete::Browse Flow::products list ok",
+                                        "id": "0cd63e2dfaa5eea8c7e5ff42c2c13380",
+                                        "passes": 150
+                                    },
+                                    "product details ok": {
+                                        "fails": 0,
+                                        "name": "product details ok",
+                                        "path": "::Shop Flow - Add Multiple Complete::Browse Flow::product details ok",
+                                        "id": "4cd2ae137eca85852df6ec3c1de2413a",
+                                        "passes": 150
+                                    },
+                                    "offers list ok": {
+                                        "fails": 0,
+                                        "name": "offers list ok",
+                                        "path": "::Shop Flow - Add Multiple Complete::Browse Flow::offers list ok",
+                                        "id": "f0ba4e33f216697b44e3e3f79e44f12a",
+                                        "passes": 150
+                                    }
+                                }
+                        }
+                    },
+                    "checks": {
+                        "create cart ok": {
+                            "name": "create cart ok",
+                            "path": "::Shop Flow - Add Multiple Complete::create cart ok",
+                            "id": "d8567577665c15ac6ed2e1e53024e559",
+                            "passes": 86,
+                            "fails": 0
+                        },
+                        "add to cart ok": {
+                            "id": "dfa555f85f1d04ec459ecdb8562a9055",
+                            "passes": 256,
+                            "fails": 0,
+                            "name": "add to cart ok",
+                            "path": "::Shop Flow - Add Multiple Complete::add to cart ok"
+                        },
+                        "view cart ok": {
+                            "id": "f6adb8704f0cc2d32865056afda21bcf",
+                            "passes": 168,
+                            "fails": 0,
+                            "name": "view cart ok",
+                            "path": "::Shop Flow - Add Multiple Complete::view cart ok"
+                        },
+                        "selected region ok": {
+                            "id": "f36b25c6f0260296dc06ac32fc1fe0b2",
+                            "passes": 81,
+                            "fails": 0,
+                            "name": "selected region ok",
+                            "path": "::Shop Flow - Add Multiple Complete::selected region ok"
+                        },
+                        "update cart ok": {
+                            "name": "update cart ok",
+                            "path": "::Shop Flow - Add Multiple Complete::update cart ok",
+                            "id": "386419c64e31cec3fd7602d8b3fa6a9f",
+                            "passes": 80,
+                            "fails": 0
+                        },
+                        "add shipping methods ok": {
+                            "name": "add shipping methods ok",
+                            "path": "::Shop Flow - Add Multiple Complete::add shipping methods ok",
+                            "id": "372262469db48aaf55a57ba0d86b1b6f",
+                            "passes": 80,
+                            "fails": 0
+                        },
+                        "create payment collection ok": {
+                            "name": "create payment collection ok",
+                            "path": "::Shop Flow - Add Multiple Complete::create payment collection ok",
+                            "id": "58da164385020ac2254f921d00815646",
+                            "passes": 80,
+                            "fails": 0
+                        },
+                        "create payment session ok": {
+                            "name": "create payment session ok",
+                            "path": "::Shop Flow - Add Multiple Complete::create payment session ok",
+                            "id": "a6a5543b7f8b5f6f9e76953e4dac7102",
+                            "passes": 80,
+                            "fails": 0
+                        },
+                        "create order group ok": {
+                            "name": "create order group ok",
+                            "path": "::Shop Flow - Add Multiple Complete::create order group ok",
+                            "id": "ce0aa4aeffc7446f1e1bcb29b027403f",
+                            "passes": 80,
+                            "fails": 0
+                        },
+                        "add promotion ok": {
+                            "path": "::Shop Flow - Add Multiple Complete::add promotion ok",
+                            "id": "9a3b71db824c023c32830c6d2cde28fc",
+                            "passes": 8,
+                            "fails": 0,
+                            "name": "add promotion ok"
+                        }
+                    }
+                },
+                "Shop Flow - Add Browse Add Complete": {
+                    "name": "Shop Flow - Add Browse Add Complete",
+                    "path": "::Shop Flow - Add Browse Add Complete",
+                    "id": "0105f3169f761cdda89607e7c368ebb1",
+                    "groups": {
+                        "Browse Flow": {
+                            "path": "::Shop Flow - Add Browse Add Complete::Browse Flow",
+                            "id": "05e3464e73a636290fa893b950550f76",
+                            "groups": {},
+                            "checks": {
+                                    "regions ok": {
+                                        "id": "d3febafcf0d08362756ffae9faeaf787",
+                                        "passes": 163,
+                                        "fails": 0,
+                                        "name": "regions ok",
+                                        "path": "::Shop Flow - Add Browse Add Complete::Browse Flow::regions ok"
+                                    },
+                                    "collections ok": {
+                                        "id": "08e28c014117649528a96c17a6789e42",
+                                        "passes": 163,
+                                        "fails": 0,
+                                        "name": "collections ok",
+                                        "path": "::Shop Flow - Add Browse Add Complete::Browse Flow::collections ok"
+                                    },
+                                    "products list ok": {
+                                        "fails": 0,
+                                        "name": "products list ok",
+                                        "path": "::Shop Flow - Add Browse Add Complete::Browse Flow::products list ok",
+                                        "id": "d1f99da69708fa50746a3df759c922a0",
+                                        "passes": 163
+                                    },
+                                    "product details ok": {
+                                        "name": "product details ok",
+                                        "path": "::Shop Flow - Add Browse Add Complete::Browse Flow::product details ok",
+                                        "id": "b291d652701e2e6283549abe5b8c242e",
+                                        "passes": 163,
+                                        "fails": 0
+                                    },
+                                    "offers list ok": {
+                                        "passes": 163,
+                                        "fails": 0,
+                                        "name": "offers list ok",
+                                        "path": "::Shop Flow - Add Browse Add Complete::Browse Flow::offers list ok",
+                                        "id": "b1fecea87f457c931510b51db796605d"
+                                    }
+                                },
+                            "name": "Browse Flow"
+                        }
+                    },
+                    "checks": {
+                        "create cart ok": {
+                            "passes": 98,
+                            "fails": 0,
+                            "name": "create cart ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::create cart ok",
+                            "id": "90fddb9f89fd06452622a1b8cdb8ccc3"
+                        },
+                        "add to cart ok": {
+                            "name": "add to cart ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::add to cart ok",
+                            "id": "15ba6043ea60e6b04751bd17d6a1f900",
+                            "passes": 173,
+                            "fails": 0
+                        },
+                        "products list ok": {
+                            "id": "06077ca047c9422cd5866cae91581163",
+                            "passes": 98,
+                            "fails": 0,
+                            "name": "products list ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::products list ok"
+                        },
+                        "view cart ok": {
+                            "id": "7ce1f6aaf44602b02f30c18ce253c829",
+                            "passes": 150,
+                            "fails": 0,
+                            "name": "view cart ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::view cart ok"
+                        },
+                        "selected region ok": {
+                            "name": "selected region ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::selected region ok",
+                            "id": "3fe49a911b040961c6063fcfef70e901",
+                            "passes": 73,
+                            "fails": 0
+                        },
+                        "update cart ok": {
+                            "name": "update cart ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::update cart ok",
+                            "id": "019eb4b7d0959b76183115bf7c97c679",
+                            "passes": 73,
+                            "fails": 0
+                        },
+                        "add shipping methods ok": {
+                            "id": "4d631d391425b70abbd8df9906e14846",
+                            "passes": 73,
+                            "fails": 0,
+                            "name": "add shipping methods ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::add shipping methods ok"
+                        },
+                        "create payment collection ok": {
+                            "name": "create payment collection ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::create payment collection ok",
+                            "id": "cc01ab51635e33679e69930fedd6b550",
+                            "passes": 71,
+                            "fails": 0
+                        },
+                        "create payment session ok": {
+                            "passes": 69,
+                            "fails": 0,
+                            "name": "create payment session ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::create payment session ok",
+                            "id": "3d289818ede30419f9520ecd5dc5fbad"
+                        },
+                        "add promotion ok": {
+                            "name": "add promotion ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::add promotion ok",
+                            "id": "e69d1be92467589809c18f02bbd9309d",
+                            "passes": 6,
+                            "fails": 0
+                        },
+                        "create order group ok": {
+                            "name": "create order group ok",
+                            "path": "::Shop Flow - Add Browse Add Complete::create order group ok",
+                            "id": "c40cc5d3b7a06d09aae82e0cfc32e5fd",
+                            "passes": 68,
+                            "fails": 0
+                        }
+                    }
+                },
+                "Shop Flow - Add Multiple Abandon": {
+                    "name": "Shop Flow - Add Multiple Abandon",
+                    "path": "::Shop Flow - Add Multiple Abandon",
+                    "id": "8ed153d3086b79d1a298b6bbd7becd8e",
+                    "groups": {
+                        "Browse Flow": {
+                            "checks": {
+                                "regions ok": {
+                                    "path": "::Shop Flow - Add Multiple Abandon::Browse Flow::regions ok",
+                                    "id": "ca46cd7d833b12f9685e9bc10b4ac4fa",
+                                    "passes": 278,
+                                    "fails": 0,
+                                    "name": "regions ok"
+                                },
+                                "collections ok": {
+                                    "name": "collections ok",
+                                    "path": "::Shop Flow - Add Multiple Abandon::Browse Flow::collections ok",
+                                    "id": "886db6451db1047b4a5104a8ac942ab0",
+                                    "passes": 278,
+                                    "fails": 0
+                                },
+                                "products list ok": {
+                                    "fails": 0,
+                                    "name": "products list ok",
+                                    "path": "::Shop Flow - Add Multiple Abandon::Browse Flow::products list ok",
+                                    "id": "b513e0e5e367db7eb8a1e64b3efa1404",
+                                    "passes": 278
+                                },
+                                "product details ok": {
+                                    "name": "product details ok",
+                                    "path": "::Shop Flow - Add Multiple Abandon::Browse Flow::product details ok",
+                                    "id": "4ffc58e3ad26fd405e4a4496f4654bf4",
+                                    "passes": 278,
+                                    "fails": 0
+                                },
+                                "offers list ok": {
+                                    "id": "c51f5a0a1e716d1a416306a560e6feb9",
+                                    "passes": 278,
+                                    "fails": 0,
+                                    "name": "offers list ok",
+                                    "path": "::Shop Flow - Add Multiple Abandon::Browse Flow::offers list ok"
+                                }
+                            },
+                            "name": "Browse Flow",
+                            "path": "::Shop Flow - Add Multiple Abandon::Browse Flow",
+                            "id": "4452a1f9eadbbfb4f887a8e829d54782",
+                            "groups": {}
+                        }
+                    },
+                    "checks": {
+                        "create cart ok": {
+                            "id": "0b7ab0f8b9c71f188abb1791aaa9e997",
+                            "passes": 186,
+                            "fails": 0,
+                            "name": "create cart ok",
+                            "path": "::Shop Flow - Add Multiple Abandon::create cart ok"
+                        },
+                        "add to cart ok": {
+                            "name": "add to cart ok",
+                            "path": "::Shop Flow - Add Multiple Abandon::add to cart ok",
+                            "id": "0279422e894f8f2bfafa4f9c6770c2f5",
+                            "passes": 541,
+                            "fails": 0
+                        },
+                        "view cart ok": {
+                            "name": "view cart ok",
+                            "path": "::Shop Flow - Add Multiple Abandon::view cart ok",
+                            "id": "a5bb39d9b6ebdab3cdd04a3c8c3a12ca",
+                            "passes": 179,
+                            "fails": 0
+                        },
+                        "add promotion ok": {
+                            "path": "::Shop Flow - Add Multiple Abandon::add promotion ok",
+                            "id": "4ce41a73faefa7e076d84cf8ce5286ed",
+                            "passes": 18,
+                            "fails": 0,
+                            "name": "add promotion ok"
+                        }
+                    }
+                },
+                "Shop Flow - Add Browse Add Abandon": {
+                    "name": "Shop Flow - Add Browse Add Abandon",
+                    "path": "::Shop Flow - Add Browse Add Abandon",
+                    "id": "d3420cbb27c9c38daf274786f20da6ab",
+                    "groups": {
+                        "Browse Flow": {
+                            "name": "Browse Flow",
+                            "path": "::Shop Flow - Add Browse Add Abandon::Browse Flow",
+                            "id": "be3fe467e08b78489c77b56ccfa1c6e9",
+                            "groups": {},
+                            "checks": {
+                                    "regions ok": {
+                                        "fails": 0,
+                                        "name": "regions ok",
+                                        "path": "::Shop Flow - Add Browse Add Abandon::Browse Flow::regions ok",
+                                        "id": "fb4bdce892919574e4b48f928d23f81f",
+                                        "passes": 438
+                                    },
+                                    "collections ok": {
+                                        "path": "::Shop Flow - Add Browse Add Abandon::Browse Flow::collections ok",
+                                        "id": "e06a4957e1e793bd6696db5b2183174d",
+                                        "passes": 438,
+                                        "fails": 0,
+                                        "name": "collections ok"
+                                    },
+                                    "products list ok": {
+                                        "name": "products list ok",
+                                        "path": "::Shop Flow - Add Browse Add Abandon::Browse Flow::products list ok",
+                                        "id": "8a72777b62be74a4ba4143a9a492e28f",
+                                        "passes": 438,
+                                        "fails": 0
+                                    },
+                                    "product details ok": {
+                                        "name": "product details ok",
+                                        "path": "::Shop Flow - Add Browse Add Abandon::Browse Flow::product details ok",
+                                        "id": "af860d31c4f633e5132acd80219acd5c",
+                                        "passes": 438,
+                                        "fails": 0
+                                    },
+                                    "offers list ok": {
+                                        "name": "offers list ok",
+                                        "path": "::Shop Flow - Add Browse Add Abandon::Browse Flow::offers list ok",
+                                        "id": "c9bf41e84bdb2adb59971a828636cbce",
+                                        "passes": 438,
+                                        "fails": 0
+                                    }
+                                }
+                        }
+                    },
+                    "checks": {
+                        "create cart ok": {
+                            "id": "c9fa401a837ceb98d0df4b42a419787f",
+                            "passes": 274,
+                            "fails": 0,
+                            "name": "create cart ok",
+                            "path": "::Shop Flow - Add Browse Add Abandon::create cart ok"
+                        },
+                        "add to cart ok": {
+                            "passes": 493,
+                            "fails": 0,
+                            "name": "add to cart ok",
+                            "path": "::Shop Flow - Add Browse Add Abandon::add to cart ok",
+                            "id": "dada60008959bac124e6419e3e9265d1"
+                        },
+                        "products list ok": {
+                            "name": "products list ok",
+                            "path": "::Shop Flow - Add Browse Add Abandon::products list ok",
+                            "id": "1f3d668db774558d8a4f2d218b020fb7",
+                            "passes": 274,
+                            "fails": 0
+                        },
+                        "view cart ok": {
+                            "name": "view cart ok",
+                            "path": "::Shop Flow - Add Browse Add Abandon::view cart ok",
+                            "id": "888b3630c39b6d209df86023fe9f567e",
+                            "passes": 217,
+                            "fails": 0
+                        },
+                        "add promotion ok": {
+                            "name": "add promotion ok",
+                            "path": "::Shop Flow - Add Browse Add Abandon::add promotion ok",
+                            "id": "6a4b16e9d4e0590046afcde40d1f2f7e",
+                            "passes": 18,
+                            "fails": 0
+                        }
+                    }
+                },
+                "Browse Flow": {
+                    "name": "Browse Flow",
+                    "path": "::Browse Flow",
+                    "id": "da66a28b51e9d5b90d2af05f1d74cfb4",
+                    "groups": {},
+                    "checks": {
+                            "regions ok": {
+                                "id": "edae5bae550e75ffb544f11195743865",
+                                "passes": 8451,
+                                "fails": 0,
+                                "name": "regions ok",
+                                "path": "::Browse Flow::regions ok"
+                            },
+                            "collections ok": {
+                                "path": "::Browse Flow::collections ok",
+                                "id": "62e7fef150cd7f8e818b1569cbdb9956",
+                                "passes": 8451,
+                                "fails": 0,
+                                "name": "collections ok"
+                            },
+                            "products list ok": {
+                                "fails": 0,
+                                "name": "products list ok",
+                                "path": "::Browse Flow::products list ok",
+                                "id": "8e53040de11fb84afa5a86a1c5bc1442",
+                                "passes": 8451
+                            },
+                            "product details ok": {
+                                "name": "product details ok",
+                                "path": "::Browse Flow::product details ok",
+                                "id": "c26ff786afdb6675725bb61bde977650",
+                                "passes": 8451,
+                                "fails": 0
+                            },
+                            "offers list ok": {
+                                "name": "offers list ok",
+                                "path": "::Browse Flow::offers list ok",
+                                "id": "46102d78b8892fcb8e60ece86f185861",
+                                "passes": 8451,
+                                "fails": 0
+                            }
+                        }
+                }
+            },
+            "checks": {}
+        }
+}
